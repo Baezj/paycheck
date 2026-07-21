@@ -70,6 +70,8 @@
 
   .repeatbar{width:100%; font-family:ui-monospace,Menlo,monospace; font-size:13px; font-weight:600; padding:13px 0;
     border-radius:12px; background:var(--card); border:1px dashed var(--orange); color:var(--orange); margin-bottom:12px;}
+  .sharebar{width:100%; font-family:ui-monospace,Menlo,monospace; font-size:13px; font-weight:600; padding:13px 0;
+    border-radius:12px; background:var(--card); border:1px solid var(--line); color:var(--text); margin-top:4px;}
 
   .day{background:var(--card); border:1px solid var(--line); border-radius:12px; margin-bottom:8px; overflow:hidden; transition:border-color .15s;}
   .day.open{background:var(--up); border-color:var(--orange);}
@@ -170,6 +172,7 @@
     <button class="repeatbar hidden" id="repeatBtn">&#8635; Repeat last week's hours</button>
 
     <div id="dayList"></div>
+    <button class="sharebar hidden" id="shareBtn">&#128228; Share timesheet (hours only, no pay)</button>
   </section>
 
   <!-- HISTORY SCREEN -->
@@ -450,6 +453,9 @@ function renderWeek(){
   const prevHas = prevW && (prevW.hours||[]).some(x=>x>0);
   document.getElementById('repeatBtn').classList.toggle('hidden', !(total===0 && prevHas));
 
+  // share timesheet
+  document.getElementById('shareBtn').classList.toggle('hidden', total<=0);
+
   // days
   const todayKey = toKey(new Date());
   const list = document.getElementById('dayList');
@@ -575,7 +581,10 @@ function renderSettings(){
     ['lplPerHr','LPL ($/hr worked)'],
     ['savingsGoal','Savings goal ($/week, 0 = off)'],
   ];
-  document.getElementById('setList').innerHTML = fields.map(([k,label])=>
+  document.getElementById('setList').innerHTML =
+    '<div class="setrow"><label for="set-userName">Your name (shown on timesheets)</label>'
+    + '<input id="set-userName" type="text" maxlength="40" style="width:150px; text-align:left; font-weight:600;" placeholder="Optional" value="'+escapeAttr(state.settings.userName||'')+'" data-textkey="userName"></div>'
+    + fields.map(([k,label])=>
     '<div class="setrow"><label for="set-'+k+'">'+label+'</label>'
     + '<input id="set-'+k+'" type="number" inputmode="decimal" step="0.001" value="'+state.settings[k]+'" data-key="'+k+'"></div>'
   ).join('');
@@ -611,6 +620,113 @@ function doImport(file){
     }
   };
   r.readAsText(file);
+}
+
+// ============ TIMESHEET IMAGE (hours + notes only — no pay info) ============
+function wrapText(ctx, text, maxW){
+  const words = text.split(' ');
+  const lines = [];
+  let line = '';
+  for (const w of words){
+    const test = line ? line+' '+w : w;
+    if (ctx.measureText(test).width > maxW && line){ lines.push(line); line = w; }
+    else line = test;
+  }
+  if (line) lines.push(line);
+  return lines.slice(0,2); // cap at 2 lines per note
+}
+function shareTimesheet(){
+  const week = getWeek();
+  const hours = getHours();
+  const notes = getNotes();
+  const s = ratesForW(week);
+  const total = hours.reduce((a,b)=>a+b,0);
+  const reg = Math.min(total, s.otThreshold), ot = Math.max(0, total - s.otThreshold);
+  const name = (state.settings.userName||'').trim();
+
+  const W = 1080, PAD = 64;
+  const cv = document.createElement('canvas');
+  const ctx = cv.getContext('2d');
+
+  // Pre-measure note lines to size the canvas
+  ctx.font = '400 30px -apple-system, Helvetica, Arial';
+  const noteLines = [];
+  let bodyH = 0;
+  for (let i=0;i<7;i++){
+    const nl = notes[i] ? wrapText(ctx, notes[i], W-PAD*2-420) : [];
+    noteLines.push(nl);
+    bodyH += 92 + nl.length*40;
+  }
+  const H = 300 + bodyH + 210;
+  cv.width = W; cv.height = H;
+
+  // Background
+  ctx.fillStyle = '#FFFFFF'; ctx.fillRect(0,0,W,H);
+  ctx.fillStyle = '#E86A00'; ctx.fillRect(0,0,W,14);
+
+  // Header
+  ctx.fillStyle = '#68717F';
+  ctx.font = '600 26px ui-monospace, Menlo, monospace';
+  ctx.fillText('TIMESHEET', PAD, 96);
+  ctx.fillStyle = '#1A1F26';
+  ctx.font = '800 52px -apple-system, Helvetica, Arial';
+  const endStr = (weekEnd.getMonth()+1)+'/'+weekEnd.getDate()+'/'+weekEnd.getFullYear();
+  ctx.fillText('Week ending Sat '+endStr, PAD, 158);
+  if (name){
+    ctx.fillStyle = '#68717F';
+    ctx.font = '500 32px -apple-system, Helvetica, Arial';
+    ctx.fillText(name, PAD, 206);
+  }
+  let y = name ? 262 : 232;
+  ctx.strokeStyle = '#D9DEE5'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(PAD, y); ctx.lineTo(W-PAD, y); ctx.stroke();
+  y += 24;
+
+  // Day rows
+  for (let i=0;i<7;i++){
+    const d = new Date(weekEnd); d.setDate(d.getDate()-(6-i));
+    const h = hours[i];
+    const rowTop = y;
+    y += 60;
+    ctx.fillStyle = '#68717F';
+    ctx.font = '600 28px ui-monospace, Menlo, monospace';
+    ctx.fillText(DAYS[d.getDay()]+' '+fmtShort(d), PAD, y);
+    ctx.fillStyle = h>0 ? '#1A1F26' : '#B7BEC9';
+    ctx.font = '800 38px ui-monospace, Menlo, monospace';
+    const hrsTxt = h>0 ? h+' hrs' : '\u2014';
+    ctx.fillText(hrsTxt, W-PAD-ctx.measureText(hrsTxt).width, y);
+    // note lines
+    ctx.fillStyle = '#68717F';
+    ctx.font = '400 30px -apple-system, Helvetica, Arial';
+    for (const ln of noteLines[i]){ y += 40; ctx.fillText(ln, PAD, y); }
+    y += 32;
+    ctx.strokeStyle = '#EDEFF3'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(PAD, y-6); ctx.lineTo(W-PAD, y-6); ctx.stroke();
+  }
+
+  // Totals
+  y += 40;
+  ctx.fillStyle = '#1A1F26';
+  ctx.font = '800 40px ui-monospace, Menlo, monospace';
+  ctx.fillText('Total: '+total+' hrs', PAD, y);
+  const sub = 'Regular '+reg+(ot>0 ? '  \u00B7  Overtime '+ot : '');
+  ctx.fillStyle = ot>0 ? '#E86A00' : '#68717F';
+  ctx.font = '600 30px ui-monospace, Menlo, monospace';
+  ctx.fillText(sub, PAD, y+48);
+
+  const fname = 'timesheet-'+toKey(weekEnd)+'.png';
+  cv.toBlob(async (blob)=>{
+    if (!blob) return;
+    const file = new File([blob], fname, {type:'image/png'});
+    if (navigator.canShare && navigator.canShare({files:[file]})){
+      try{ await navigator.share({files:[file], title:'Timesheet week ending '+endStr}); }
+      catch(e){ /* user cancelled */ }
+    } else {
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob); a.download = fname;
+      document.body.appendChild(a); a.click(); a.remove();
+    }
+  }, 'image/png');
 }
 
 // ============ EVENTS ============
@@ -666,6 +782,7 @@ document.addEventListener('click', (e)=>{
     return;
   }
   if (t.id==='exportBtn'){ doExport(); return; }
+  if (t.id==='shareBtn'){ shareTimesheet(); return; }
   if (t.id==='importBtn'){ document.getElementById('importFile').click(); return; }
   if (t.dataset.day!==undefined){
     const i = +t.dataset.day; openDay = (openDay===i? null : i); renderWeek(); return;
@@ -682,6 +799,10 @@ document.addEventListener('click', (e)=>{
 });
 document.addEventListener('input', (e)=>{
   const el = e.target;
+  if (el.dataset && el.dataset.textkey){
+    state.settings[el.dataset.textkey] = el.value;
+    save(); return;
+  }
   if (el.dataset && el.dataset.key){
     state.settings[el.dataset.key] = parseFloat(el.value)||0;
     save(); return;
