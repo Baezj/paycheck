@@ -133,7 +133,19 @@
   .tab{flex:1; font-family:ui-monospace,Menlo,monospace; font-size:13px; font-weight:600; padding:12px 0; border-radius:8px; background:transparent; color:var(--dim); transition:background .15s,color .15s;}
   .tab.on{background:var(--orange); color:var(--orange-text);}
   .hidden{display:none;}
-  @media (prefers-reduced-motion: reduce){ *{transition:none !important;} }
+
+  /* ---- Motion ---- */
+  @keyframes slideDown{ from{opacity:0; transform:translateY(-8px);} to{opacity:1; transform:translateY(0);} }
+  @keyframes fadeIn{ from{opacity:0;} to{opacity:1;} }
+  .daybody{ animation:slideDown .22s ease; }
+  .breakdown:not(.hidden), .compare:not(.hidden){ animation:slideDown .22s ease; }
+  .daynote-preview{ animation:fadeIn .2s ease; }
+  #screen-week, #screen-history, #screen-settings{ animation:fadeIn .18s ease; }
+  .chip:active, .navbtn:active, .smallbtn:active, .tab:active, .repeatbar:active, .sharebar:active, .histrow:active{
+    transform:scale(.965); transition:transform .08s ease;
+  }
+  .dayhead:active{ opacity:.7; transition:opacity .08s ease; }
+  @media (prefers-reduced-motion: reduce){ *{transition:none !important; animation:none !important;} }
 </style>
 </head>
 <body>
@@ -765,7 +777,14 @@ document.addEventListener('click', (e)=>{
       w.actual = { net, gross };
       save();
     }
-    renderWeek(); return;
+    renderWeek();
+    const b = document.getElementById('saveActual');
+    if (b && net>0){
+      b.textContent = 'Saved \u2713';
+      b.style.background = 'var(--green)';
+      setTimeout(()=>{ if (document.getElementById('saveActual')) renderWeek(); }, 1200);
+    }
+    return;
   }
   if (t.id==='removeActual'){
     const w = getWeek();
