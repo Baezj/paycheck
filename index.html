@@ -362,6 +362,7 @@ function fromKey(k){ const [y,m,dd]=k.split('-').map(Number); return new Date(y,
 function fmtShort(d){ return (d.getMonth()+1)+'/'+d.getDate(); }
 function money(n){ return n.toLocaleString('en-US',{minimumFractionDigits:2, maximumFractionDigits:2}); }
 const DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+const ORDER = [1,2,3,4,5,6,0]; // display order: Mon..Sat, Sunday last
 
 let weekEnd = weekEndSat(new Date());
 let openDay = null;
@@ -491,7 +492,7 @@ function renderWeek(){
   const todayKey = toKey(new Date());
   const list = document.getElementById('dayList');
   list.innerHTML = '';
-  for (let i=0;i<7;i++){
+  for (const i of ORDER){
     const d = new Date(weekEnd); d.setDate(d.getDate()-(6-i));
     const isToday = toKey(d)===todayKey;
     const h = hours[i];
@@ -512,7 +513,7 @@ function renderWeek(){
         +   '<button class="chip" data-adj="'+i+':-0.5">\u2212\u00BD</button>'
         +   '<button class="chip" data-adj="'+i+':0.5">+\u00BD</button>'
         +   '<button class="chip clear" data-set="'+i+':0">Clear</button>'
-        +   '<button class="chip next" data-next="'+i+'">'+(i<6?'Next \u203A':'Done')+'</button>'
+        +   '<button class="chip next" data-next="'+i+'">'+(i===0?'Done':'Next \u203A')+'</button>'
         + '</div>'
         + '<input class="noteinput" type="text" maxlength="80" placeholder="Note (optional) \u2014 e.g. why the OT, job site\u2026" value="'+escapeAttr(note)+'" data-note="'+i+'">'
         + '</div>' : '');
@@ -681,11 +682,11 @@ function shareTimesheet(){
 
   // Pre-measure note lines to size the canvas
   ctx.font = '400 30px -apple-system, Helvetica, Arial';
-  const noteLines = [];
+  const noteLines = {};
   let bodyH = 0;
-  for (let i=0;i<7;i++){
+  for (const i of ORDER){
     const nl = notes[i] ? wrapText(ctx, notes[i], W-PAD*2-420) : [];
-    noteLines.push(nl);
+    noteLines[i] = nl;
     bodyH += 92 + nl.length*40;
   }
   const H = 300 + bodyH + 210;
@@ -714,7 +715,7 @@ function shareTimesheet(){
   y += 24;
 
   // Day rows
-  for (let i=0;i<7;i++){
+  for (const i of ORDER){
     const d = new Date(weekEnd); d.setDate(d.getDate()-(6-i));
     const h = hours[i];
     const rowTop = y;
@@ -827,7 +828,12 @@ document.addEventListener('click', (e)=>{
   }
   if (t.dataset.set){ const [i,v] = t.dataset.set.split(':').map(Number); setDay(i,v); return; }
   if (t.dataset.adj){ const [i,dv] = t.dataset.adj.split(':').map(Number); setDay(i, getHours()[i]+dv); return; }
-  if (t.dataset.next!==undefined){ const i = +t.dataset.next; openDay = i<6 ? i+1 : null; renderWeek(); return; }
+  if (t.dataset.next!==undefined){
+    const i = +t.dataset.next;
+    const pos = ORDER.indexOf(i);
+    openDay = pos < ORDER.length-1 ? ORDER[pos+1] : null;
+    renderWeek(); return;
+  }
   if (t.dataset.goto){
     weekEnd = weekEndSat(fromKey(t.dataset.goto));
     openDay=null; showComp=false;
