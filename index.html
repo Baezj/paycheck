@@ -137,6 +137,10 @@
   /* ---- Motion ---- */
   @keyframes slideDown{ from{opacity:0; transform:translateY(-8px);} to{opacity:1; transform:translateY(0);} }
   @keyframes fadeIn{ from{opacity:0;} to{opacity:1;} }
+  @keyframes fromRight{ from{opacity:0; transform:translateX(16px);} to{opacity:1; transform:translateX(0);} }
+  @keyframes fromLeft{ from{opacity:0; transform:translateX(-16px);} to{opacity:1; transform:translateX(0);} }
+  #screen-week.anim-next{ animation:fromRight .2s ease; }
+  #screen-week.anim-prev{ animation:fromLeft .2s ease; }
   .daybody{ animation:slideDown .22s ease; }
   .breakdown:not(.hidden), .compare:not(.hidden){ animation:slideDown .22s ease; }
   .daynote-preview{ animation:fadeIn .2s ease; }
@@ -378,6 +382,14 @@ function setDay(i, v){
   save(); renderWeek();
 }
 function setNote(i, text){ const w = touchWeek(); w.notes[i] = text; save(); }
+
+// Directional slide when changing weeks (dir: 1 = forward, -1 = back)
+function weekSlide(dir){
+  const el = document.getElementById('screen-week');
+  el.classList.remove('anim-next','anim-prev');
+  void el.offsetWidth; // restart the animation
+  el.classList.add(dir > 0 ? 'anim-next' : 'anim-prev');
+}
 
 // ============ RENDER: WEEK ============
 function renderWeek(){
@@ -764,8 +776,9 @@ document.addEventListener('click', (e)=>{
     return;
   }
   if (t.id==='prevWeek' || t.id==='nextWeek'){
-    weekEnd.setDate(weekEnd.getDate() + (t.id==='nextWeek'?7:-7));
-    openDay=null; showComp=false; renderWeek(); return;
+    const dir = t.id==='nextWeek' ? 1 : -1;
+    weekEnd.setDate(weekEnd.getDate() + dir*7);
+    openDay=null; showComp=false; renderWeek(); weekSlide(dir); return;
   }
   if (t.id==='toggleBd'){ showBd=!showBd; renderWeek(); return; }
   if (t.id==='toggleComp'){ showComp=!showComp; renderWeek(); return; }
@@ -849,8 +862,9 @@ document.getElementById('importFile').addEventListener('change', (e)=>{
     const t = e.changedTouches[0];
     const dx = t.clientX - x0, dy = t.clientY - y0;
     if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy)*1.5){
-      weekEnd.setDate(weekEnd.getDate() + (dx < 0 ? 7 : -7)); // swipe left = next week
-      openDay=null; showComp=false; renderWeek();
+      const dir = dx < 0 ? 1 : -1; // swipe left = next week
+      weekEnd.setDate(weekEnd.getDate() + dir*7);
+      openDay=null; showComp=false; renderWeek(); weekSlide(dir);
     }
   }, {passive:true});
 })();
