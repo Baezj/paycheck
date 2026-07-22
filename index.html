@@ -267,7 +267,7 @@
 <script>
 // ============ STATE & STORAGE ============
 const KEY = 'paytracker:v1';
-const DEFAULTS = { baseRate:49.15, otRate:73.725, otThreshold:40, duesPerHr:1.75, lplPerHr:0.07, savingsGoal:0, workSundays:false };
+const DEFAULTS = { baseRate:49.15, otRate:73.725, otThreshold:40, dailyOtThreshold:8, duesPerHr:1.75, lplPerHr:0.07, savingsGoal:0, workSundays:false };
 let state = { weeks:{}, settings:{...DEFAULTS}, theme:'auto', seeded:false };
 try {
   const saved = JSON.parse(localStorage.getItem(KEY));
@@ -324,9 +324,23 @@ function calcFWH(gross){
   }
   return tax;
 }
+// Split hours into regular vs overtime.
+// Union rule: anything over 8 hrs in a single DAY is OT immediately,
+// plus any straight-time hours over 40 in the week are also OT (no double counting).
+function splitHours(arr, s){
+  const dailyCap = s.dailyOtThreshold || 8;
+  let straight = 0, ot = 0;
+  for (const h of arr){
+    straight += Math.min(h, dailyCap);
+    ot += Math.max(0, h - dailyCap);
+  }
+  const weeklyExtra = Math.max(0, straight - s.otThreshold);
+  return { reg: straight - weeklyExtra, ot: ot + weeklyExtra };
+}
 // Raw calc (no calibration) — used for storing clean comparisons
-function calcPayRaw(hrs, s){
-  const reg = Math.min(hrs, s.otThreshold), ot = Math.max(0, hrs - s.otThreshold);
+function calcPayRaw(hoursArr, s){
+  const { reg, ot } = splitHours(hoursArr, s);
+  const hrs = reg + ot;
   const regPay = reg*s.baseRate, otPay = ot*s.otRate, gross = regPay+otPay;
   const fwh = calcFWH(gross), socSec = gross*.062, medicare = gross*.0145;
   const maSwh = Math.max(0, gross*.05 - 1.92), mapfl = gross*.0046;
@@ -341,7 +355,7 @@ function calibration(){
     if (!v.actual || !(v.actual.net>0)) continue;
     const th = (v.hours||[]).reduce((a,b)=>a+b,0);
     if (th<=0) continue;
-    const raw = calcPayRaw(th, ratesForW(v));
+    const raw = calcPayRaw(v.hours||[], ratesForW(v));
     // If a gross was entered, only trust the comparison when it matches our computed gross
     if (v.actual.gross>0 && Math.abs(v.actual.gross - raw.gross) > 0.5) continue;
     sum += raw.net - v.actual.net; count++;
@@ -351,9 +365,9 @@ function calibration(){
   return { offset: Math.max(-25, Math.min(25, offset)), count };
 }
 // Calibrated calc — what we display for estimates
-function calcPay(hrs, s){
-  const p = calcPayRaw(hrs, s);
-  if (hrs <= 0 || p.gross <= 0) return p; // nothing worked = nothing to calibrate
+function calcPay(hoursArr, s){
+  const p = calcPayRaw(hoursArr, s);
+  if (p.gross <= 0) return p; // nothing worked = nothing to calibrate
   const c = calibration();
   p.fwh += c.offset;
   p.net -= c.offset;
@@ -410,7 +424,7 @@ function renderWeek(){
   const notes = getNotes();
   const total = hours.reduce((a,b)=>a+b,0);
   const s = ratesForW(week);
-  const p = calcPay(total, s);
+  const p = calcPay(hours, s);
 
   document.getElementById('weekLabel').textContent = 'Sat ' + fmtShort(weekEnd);
   document.getElementById('thisWeekTag').classList.toggle('hidden', toKey(weekEndSat(new Date())) !== toKey(weekEnd));
@@ -542,7 +556,7 @@ function renderHistory(){
     const th = (v.hours||[]).reduce((a,b)=>a+b,0);
     if (th<=0) continue;
     // Prefer real numbers when we have them
-    const p = calcPay(th, ratesForW(v));
+    const p = calcPay(v.hours||[], ratesForW(v));
     const useNet = (v.actual && v.actual.net>0) ? v.actual.net : p.net;
     const useGross = (v.actual && v.actual.gross>0) ? v.actual.gross : p.gross;
     const hasNotes = (v.notes||[]).some(x=>x);
@@ -623,6 +637,7 @@ function renderSettings(){
   const fields = [
     ['baseRate','Base rate ($/hr)'],
     ['otRate','Overtime rate ($/hr)'],
+    ['dailyOtThreshold','OT starts after (hrs/day)'],
     ['otThreshold','OT starts after (hrs/week)'],
     ['duesPerHr','Union dues ($/hr worked)'],
     ['lplPerHr','LPL ($/hr worked)'],
@@ -689,7 +704,7 @@ function shareTimesheet(){
   const notes = getNotes();
   const s = ratesForW(week);
   const total = hours.reduce((a,b)=>a+b,0);
-  const reg = Math.min(total, s.otThreshold), ot = Math.max(0, total - s.otThreshold);
+  const { reg, ot } = splitHours(hours, s);
   const name = (state.settings.userName||'').trim();
 
   const W = 1080, PAD = 64;
