@@ -78,6 +78,7 @@
     border-radius:12px; background:var(--card); border:1px solid var(--line); color:var(--text); margin-top:4px;}
 
   .day{background:var(--card); border:1px solid var(--line); border-radius:12px; margin-bottom:8px; overflow:hidden; transition:border-color .15s;}
+  .day.off{opacity:.4; pointer-events:none;}
   .day.open{background:var(--up); border-color:var(--orange);}
   .dayhead{width:100%; display:flex; align-items:center; justify-content:space-between; padding:14px 16px; background:none; font-size:15px;}
   .dayname{font-family:ui-monospace,Menlo,monospace; font-size:12px; color:var(--dim); width:70px; text-align:left; display:inline-block;}
@@ -227,6 +228,14 @@
       </div>
     </div>
 
+    <div class="setrow">
+      <label>Sundays</label>
+      <div class="seg" id="sunSeg">
+        <button class="segbtn" data-sun-pick="on">On</button>
+        <button class="segbtn" data-sun-pick="off">Off</button>
+      </div>
+    </div>
+
     <p class="setsection">Pay rates — update these when you get a raise. Past weeks keep the rates they were logged at, so your history stays accurate.</p>
     <div id="setList"></div>
 
@@ -258,7 +267,7 @@
 <script>
 // ============ STATE & STORAGE ============
 const KEY = 'paytracker:v1';
-const DEFAULTS = { baseRate:49.15, otRate:73.725, otThreshold:40, duesPerHr:1.75, lplPerHr:0.07, savingsGoal:0 };
+const DEFAULTS = { baseRate:49.15, otRate:73.725, otThreshold:40, duesPerHr:1.75, lplPerHr:0.07, savingsGoal:0, workSundays:false };
 let state = { weeks:{}, settings:{...DEFAULTS}, theme:'auto', seeded:false };
 try {
   const saved = JSON.parse(localStorage.getItem(KEY));
@@ -362,7 +371,6 @@ function fromKey(k){ const [y,m,dd]=k.split('-').map(Number); return new Date(y,
 function fmtShort(d){ return (d.getMonth()+1)+'/'+d.getDate(); }
 function money(n){ return n.toLocaleString('en-US',{minimumFractionDigits:2, maximumFractionDigits:2}); }
 const DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
-const ORDER = [1,2,3,4,5,6,0]; // display order: Mon..Sat, Sunday last
 
 let weekEnd = weekEndSat(new Date());
 let openDay = null;
@@ -490,18 +498,20 @@ function renderWeek(){
 
   // days
   const todayKey = toKey(new Date());
+  const sundayOn = !!state.settings.workSundays;
   const list = document.getElementById('dayList');
   list.innerHTML = '';
-  for (const i of ORDER){
+  for (let i=0;i<7;i++){
     const d = new Date(weekEnd); d.setDate(d.getDate()-(6-i));
     const isToday = toKey(d)===todayKey;
     const h = hours[i];
     const note = notes[i] || '';
-    const open = openDay===i;
+    const dayOff = (i===0 && !sundayOn && h<=0);
+    const open = openDay===i && !dayOff;
     const card = document.createElement('div');
-    card.className = 'day'+(open?' open':'');
+    card.className = 'day'+(open?' open':'')+(dayOff?' off':'');
     card.innerHTML =
-      '<button class="dayhead" data-day="'+i+'">'
+      '<button class="dayhead" data-day="'+i+'"'+(dayOff?' tabindex="-1" aria-disabled="true"':'')+'>'
       + '<span><span class="dayname'+(isToday?' today':'')+'">'+DAYS[d.getDay()]+' '+fmtShort(d)+'</span>'
       + (isToday?'<span class="todaytag">TODAY</span>':'') + '</span>'
       + '<span class="dayhrs'+(h>0?'':' empty')+'">'+(h>0? h+' hrs':'\u2014')+'</span></button>'
@@ -513,7 +523,7 @@ function renderWeek(){
         +   '<button class="chip" data-adj="'+i+':-0.5">\u2212\u00BD</button>'
         +   '<button class="chip" data-adj="'+i+':0.5">+\u00BD</button>'
         +   '<button class="chip clear" data-set="'+i+':0">Clear</button>'
-        +   '<button class="chip next" data-next="'+i+'">'+(i===0?'Done':'Next \u203A')+'</button>'
+        +   '<button class="chip next" data-next="'+i+'">'+(i<6?'Next \u203A':'Done')+'</button>'
         + '</div>'
         + '<input class="noteinput" type="text" maxlength="80" placeholder="Note (optional) \u2014 e.g. why the OT, job site\u2026" value="'+escapeAttr(note)+'" data-note="'+i+'">'
         + '</div>' : '');
@@ -603,6 +613,11 @@ function renderHistory(){
     ).join('');
 }
 
+function syncSunSeg(){
+  document.querySelectorAll('[data-sun-pick]').forEach(b=>
+    b.classList.toggle('on', (b.dataset.sunPick==='on') === !!state.settings.workSundays));
+}
+
 // ============ RENDER: SETTINGS ============
 function renderSettings(){
   const fields = [
@@ -625,6 +640,7 @@ function renderSettings(){
   document.getElementById('calibInfo').innerHTML = c.count>0
     ? 'Auto-calibration: estimates adjusted by <b>'+(c.offset>=0?'\u2212':'+')+'$'+money(Math.abs(c.offset))+'</b> based on <b>'+c.count+'</b> verified check'+(c.count===1?'':'s')+'. Every real check you enter makes it sharper.'
     : 'No verified checks yet. Enter your actual net on a week (\u2713 Actual check) and estimates will self-tune.';
+  syncSunSeg();
   applyTheme();
 }
 
@@ -684,7 +700,7 @@ function shareTimesheet(){
   ctx.font = '400 30px -apple-system, Helvetica, Arial';
   const noteLines = {};
   let bodyH = 0;
-  for (const i of ORDER){
+  for (let i=0;i<7;i++){ // timesheet stays chronological: Sun first
     const nl = notes[i] ? wrapText(ctx, notes[i], W-PAD*2-420) : [];
     noteLines[i] = nl;
     bodyH += 92 + nl.length*40;
@@ -714,8 +730,8 @@ function shareTimesheet(){
   ctx.beginPath(); ctx.moveTo(PAD, y); ctx.lineTo(W-PAD, y); ctx.stroke();
   y += 24;
 
-  // Day rows
-  for (const i of ORDER){
+  // Day rows — chronological (Sun first) for the boss's copy
+  for (let i=0;i<7;i++){
     const d = new Date(weekEnd); d.setDate(d.getDate()-(6-i));
     const h = hours[i];
     const rowTop = y;
@@ -775,10 +791,17 @@ document.addEventListener('click', (e)=>{
     return;
   }
   if (t.dataset.themePick){ state.theme = t.dataset.themePick; save(); applyTheme(); return; }
+  if (t.dataset.sunPick){
+    state.settings.workSundays = (t.dataset.sunPick==='on');
+    save(); syncSunSeg(); return;
+  }
   if (t.id==='weekHome'){
     const cur = weekEndSat(new Date());
     if (toKey(cur)!==toKey(weekEnd)){
-      weekEnd = cur; openDay = new Date().getDay(); showComp=false; renderWeek();
+      weekEnd = cur;
+      const td = new Date().getDay();
+      openDay = (td===0 && !state.settings.workSundays) ? null : td;
+      showComp=false; renderWeek();
     }
     return;
   }
@@ -830,8 +853,7 @@ document.addEventListener('click', (e)=>{
   if (t.dataset.adj){ const [i,dv] = t.dataset.adj.split(':').map(Number); setDay(i, getHours()[i]+dv); return; }
   if (t.dataset.next!==undefined){
     const i = +t.dataset.next;
-    const pos = ORDER.indexOf(i);
-    openDay = pos < ORDER.length-1 ? ORDER[pos+1] : null;
+    openDay = i<6 ? i+1 : null;
     renderWeek(); return;
   }
   if (t.dataset.goto){
@@ -889,8 +911,11 @@ document.getElementById('payCard').addEventListener('click', (e)=>{
 
 
 applyTheme();
-// Auto-open today's card when viewing the current week
-if (toKey(weekEndSat(new Date())) === toKey(weekEnd)) openDay = new Date().getDay();
+// Auto-open today's card when viewing the current week (skip Sunday if it's toggled off)
+if (toKey(weekEndSat(new Date())) === toKey(weekEnd)){
+  const td = new Date().getDay();
+  openDay = (td===0 && !state.settings.workSundays) ? null : td;
+}
 renderWeek();
 
 // Offline support — cache the app so it loads with no signal
