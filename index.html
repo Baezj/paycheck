@@ -40,13 +40,17 @@
   .weekdate{font-size:17px; font-weight:700;}
   .thisweek{color:var(--orange); font-size:12px; font-family:ui-monospace,Menlo,monospace; margin-left:6px;}
 
-  .paycard{background:var(--card); border:1px solid var(--line); border-radius:14px; padding:18px 16px; margin-bottom:12px;}
+  .paycard{background:var(--card); border:1px solid var(--line); border-radius:14px; padding:18px 16px; margin-bottom:12px; cursor:pointer;}
+  .bd-chevron{color:var(--dim); font-size:12px; margin-left:6px;}
   .payrow{display:flex; justify-content:space-between; align-items:baseline;}
   .net{font-family:ui-monospace,Menlo,monospace; font-size:40px; font-weight:700; color:var(--green); line-height:1; font-variant-numeric:tabular-nums;}
   .hrsinfo{text-align:right; font-family:ui-monospace,Menlo,monospace; font-size:13px; color:var(--dim);}
   .otflag{color:var(--orange);}
-  .cardactions{display:flex; gap:16px; margin-top:12px;}
+  .cardactions{display:flex; gap:16px; margin-top:14px;}
   .linkbtn{background:none; color:var(--orange); font-family:ui-monospace,Menlo,monospace; font-size:12px; padding:0;}
+  .verifybtn{background:transparent; color:var(--orange); border:1.5px solid var(--orange); border-radius:9px;
+    font-family:ui-monospace,Menlo,monospace; font-size:13px; font-weight:600; padding:9px 16px;}
+  .verifybtn.v{color:var(--green); border-color:var(--green);}
   .breakdown{margin-top:12px; border-top:1px solid var(--line); padding-top:12px; font-family:ui-monospace,Menlo,monospace; font-size:13px;}
   .bd-line{display:flex; justify-content:space-between; padding:4px 0; color:var(--dim);}
   .bd-line.strong{color:var(--text); font-weight:700; border-top:1px solid var(--line); margin-top:4px; padding-top:8px;}
@@ -165,10 +169,10 @@
       <button class="navbtn" id="nextWeek" aria-label="Next week">&#8250;</button>
     </div>
 
-    <div class="paycard">
+    <div class="paycard" id="payCard">
       <div class="payrow">
         <div>
-          <div class="eyebrow" style="margin-bottom:4px">Estimated take-home</div>
+          <div class="eyebrow" style="margin-bottom:4px">Estimated take-home<span class="bd-chevron" id="bdChevron">&#9662;</span></div>
           <div class="net" id="netPay">$0.00</div>
         </div>
         <div class="hrsinfo">
@@ -178,8 +182,7 @@
       </div>
       <div class="savingsline hidden" id="savingsLine"></div>
       <div class="cardactions">
-        <button class="linkbtn" id="toggleBd">&#9662; Breakdown</button>
-        <button class="linkbtn" id="toggleComp">&#10003; Actual check</button>
+        <button class="verifybtn" id="toggleComp">&#10003; Actual check</button>
       </div>
       <div class="breakdown hidden" id="breakdown"></div>
       <div class="compare hidden" id="compare"></div>
@@ -440,12 +443,15 @@ function renderWeek(){
     '<div class="bd-line '+cls+'"><span>'+l+'</span><span>'+(a<0?'\u2212':'')+'$'+money(Math.abs(a))+'</span></div>'
   ).join('');
   bd.classList.toggle('hidden', !showBd);
-  document.getElementById('toggleBd').innerHTML = showBd ? '&#9652; Breakdown' : '&#9662; Breakdown';
+  document.getElementById('bdChevron').innerHTML = showBd ? '&#9652;' : '&#9662;';
 
   // actual check compare
   const comp = document.getElementById('compare');
   comp.classList.toggle('hidden', !showComp);
-  document.getElementById('toggleComp').innerHTML = (week && week.actual) ? '&#10003; Verified' : '&#10003; Actual check';
+  const tc = document.getElementById('toggleComp');
+  const isVerified = !!(week && week.actual);
+  tc.innerHTML = isVerified ? '&#10003; Verified' : '&#10003; Actual check';
+  tc.classList.toggle('v', isVerified);
   if (showComp){
     const a = (week && week.actual) || {};
     let resultHtml = '';
@@ -780,7 +786,6 @@ document.addEventListener('click', (e)=>{
     weekEnd.setDate(weekEnd.getDate() + dir*7);
     openDay=null; showComp=false; renderWeek(); weekSlide(dir); return;
   }
-  if (t.id==='toggleBd'){ showBd=!showBd; renderWeek(); return; }
   if (t.id==='toggleComp'){ showComp=!showComp; renderWeek(); return; }
   if (t.id==='saveActual'){
     const net = parseFloat(document.getElementById('actNet').value)||0;
@@ -845,6 +850,13 @@ document.addEventListener('input', (e)=>{
 document.getElementById('importFile').addEventListener('change', (e)=>{
   if (e.target.files && e.target.files[0]) doImport(e.target.files[0]);
   e.target.value = '';
+});
+
+// Tap the take-home card to show/hide the breakdown
+document.getElementById('payCard').addEventListener('click', (e)=>{
+  if (e.target.closest('#toggleComp') || e.target.closest('.compare') || e.target.closest('input') || e.target.closest('.smallbtn')) return;
+  showBd = !showBd;
+  renderWeek();
 });
 
 // ============ SWIPE BETWEEN WEEKS ============
