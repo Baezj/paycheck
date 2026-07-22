@@ -267,7 +267,7 @@
 <script>
 // ============ STATE & STORAGE ============
 const KEY = 'paytracker:v1';
-const DEFAULTS = { baseRate:49.15, otRate:73.725, otThreshold:40, dailyOtThreshold:8, duesPerHr:1.75, lplPerHr:0.07, savingsGoal:0, workSundays:false };
+const DEFAULTS = { baseRate:49.15, otRate:73.725, sundayRate:98.30, otThreshold:40, dailyOtThreshold:8, duesPerHr:1.75, lplPerHr:0.07, savingsGoal:0, workSundays:false };
 let state = { weeks:{}, settings:{...DEFAULTS}, theme:'auto', seeded:false };
 try {
   const saved = JSON.parse(localStorage.getItem(KEY));
@@ -324,29 +324,38 @@ function calcFWH(gross){
   }
   return tax;
 }
-// Split hours into regular vs overtime.
-// Union rule: anything over 8 hrs in a single DAY is OT immediately,
-// plus any straight-time hours over 40 in the week are also OT (no double counting).
+// Split hours into regular / overtime / double-time.
+// Union rules:
+//  - Mon-Fri: over 8 hrs in a day = OT; over 40 straight-time hrs in the week = OT (no double counting)
+//  - Saturday: ALL hours at OT rate
+//  - Sunday: ALL hours at double time
+// hoursArr indices: 0=Sun, 1=Mon ... 6=Sat
 function splitHours(arr, s){
   const dailyCap = s.dailyOtThreshold || 8;
-  let straight = 0, ot = 0;
-  for (const h of arr){
-    straight += Math.min(h, dailyCap);
-    ot += Math.max(0, h - dailyCap);
+  let straight = 0, ot = 0, dt = 0;
+  for (let i=0;i<7;i++){
+    const h = arr[i]||0;
+    if (i===0){ dt += h; }                    // Sunday = double time
+    else if (i===6){ ot += h; }               // Saturday = OT rate
+    else {                                    // weekdays
+      straight += Math.min(h, dailyCap);
+      ot += Math.max(0, h - dailyCap);
+    }
   }
   const weeklyExtra = Math.max(0, straight - s.otThreshold);
-  return { reg: straight - weeklyExtra, ot: ot + weeklyExtra };
+  return { reg: straight - weeklyExtra, ot: ot + weeklyExtra, dt };
 }
 // Raw calc (no calibration) — used for storing clean comparisons
 function calcPayRaw(hoursArr, s){
-  const { reg, ot } = splitHours(hoursArr, s);
-  const hrs = reg + ot;
-  const regPay = reg*s.baseRate, otPay = ot*s.otRate, gross = regPay+otPay;
+  const { reg, ot, dt } = splitHours(hoursArr, s);
+  const hrs = reg + ot + dt;
+  const regPay = reg*s.baseRate, otPay = ot*s.otRate, dtPay = dt*(s.sundayRate || s.baseRate*2);
+  const gross = regPay + otPay + dtPay;
   const fwh = calcFWH(gross), socSec = gross*.062, medicare = gross*.0145;
   const maSwh = Math.max(0, gross*.05 - 1.92), mapfl = gross*.0046;
   const dues = hrs*s.duesPerHr, lpl = hrs*s.lplPerHr;
   const net = gross - fwh - socSec - medicare - maSwh - mapfl - dues - lpl;
-  return {reg, ot, regPay, otPay, gross, fwh, socSec, medicare, maSwh, mapfl, dues, lpl, net, deducted: gross-net};
+  return {reg, ot, dt, regPay, otPay, dtPay, gross, fwh, socSec, medicare, maSwh, mapfl, dues, lpl, net, deducted: gross-net};
 }
 // Auto-calibration offset: avg (raw est net − actual net) across verified weeks where gross matched
 function calibration(){
@@ -431,8 +440,11 @@ function renderWeek(){
   document.getElementById('netPay').textContent = '$' + money(p.net);
   document.getElementById('totalHrs').textContent = total + ' hrs';
   const otEl = document.getElementById('otHrs');
-  otEl.classList.toggle('hidden', p.ot<=0);
-  otEl.textContent = p.ot + ' OT';
+  const flags = [];
+  if (p.ot>0) flags.push(p.ot+' OT');
+  if (p.dt>0) flags.push(p.dt+' 2x');
+  otEl.classList.toggle('hidden', flags.length===0);
+  otEl.textContent = flags.join(' \u00B7 ');
 
   // savings helper
   const sg = state.settings.savingsGoal||0;
@@ -452,6 +464,7 @@ function renderWeek(){
   const lines = [
     ['Regular '+p.reg+' \u00D7 $'+s.baseRate, p.regPay, ''],
     ...(p.ot>0 ? [['Overtime '+p.ot+' \u00D7 $'+s.otRate, p.otPay, 'ot']] : []),
+    ...(p.dt>0 ? [['Sunday 2x '+p.dt+' \u00D7 $'+(s.sundayRate||s.baseRate*2), p.dtPay, 'ot']] : []),
     ['Gross pay', p.gross, 'strong'],
     ['Federal tax', -p.fwh, ''],
     ['Social Security', -p.socSec, ''],
@@ -621,7 +634,7 @@ function renderHistory(){
     : rows.map(r =>
       '<button class="histrow" data-goto="'+r.k+'">'
       + '<span><div class="histweek">Week of '+fmtShort(r.d)+'</div>'
-      + '<div class="histsub">'+r.th+' hrs'+(r.p.ot>0?' \u00B7 '+r.p.ot+' OT':'')+(r.hasNotes?' \u00B7 \uD83D\uDCDD':'')
+      + '<div class="histsub">'+r.th+' hrs'+(r.p.ot>0?' \u00B7 '+r.p.ot+' OT':'')+(r.p.dt>0?' \u00B7 '+r.p.dt+' 2x':'')+(r.hasNotes?' \u00B7 \uD83D\uDCDD':'')
       + (r.verified?' \u00B7 <span class="verified">\u2713 verified</span>':'')+'</div></span>'
       + '<span class="histnet">$'+money(r.useNet)+'</span></button>'
     ).join('');
@@ -637,6 +650,7 @@ function renderSettings(){
   const fields = [
     ['baseRate','Base rate ($/hr)'],
     ['otRate','Overtime rate ($/hr)'],
+    ['sundayRate','Sunday rate ($/hr, double time)'],
     ['dailyOtThreshold','OT starts after (hrs/day)'],
     ['otThreshold','OT starts after (hrs/week)'],
     ['duesPerHr','Union dues ($/hr worked)'],
@@ -704,7 +718,7 @@ function shareTimesheet(){
   const notes = getNotes();
   const s = ratesForW(week);
   const total = hours.reduce((a,b)=>a+b,0);
-  const { reg, ot } = splitHours(hours, s);
+  const { reg, ot, dt } = splitHours(hours, s);
   const name = (state.settings.userName||'').trim();
 
   const W = 1080, PAD = 64;
@@ -772,8 +786,8 @@ function shareTimesheet(){
   ctx.fillStyle = '#1A1F26';
   ctx.font = '800 40px ui-monospace, Menlo, monospace';
   ctx.fillText('Total: '+total+' hrs', PAD, y);
-  const sub = 'Regular '+reg+(ot>0 ? '  \u00B7  Overtime '+ot : '');
-  ctx.fillStyle = ot>0 ? '#E86A00' : '#68717F';
+  const sub = 'Regular '+reg+(ot>0 ? '  \u00B7  Overtime '+ot : '')+(dt>0 ? '  \u00B7  Sunday 2x '+dt : '');
+  ctx.fillStyle = (ot>0||dt>0) ? '#E86A00' : '#68717F';
   ctx.font = '600 30px ui-monospace, Menlo, monospace';
   ctx.fillText(sub, PAD, y+48);
 
