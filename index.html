@@ -795,7 +795,7 @@ document.addEventListener('click', (e)=>{
     if (b && net>0){
       b.textContent = 'Saved \u2713';
       b.style.background = 'var(--green)';
-      setTimeout(()=>{ if (document.getElementById('saveActual')) renderWeek(); }, 1200);
+      setTimeout(()=>{ showComp = false; renderWeek(); }, 900); // flash, then tuck the panel away
     }
     return;
   }
