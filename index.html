@@ -65,6 +65,8 @@
   .compinput{width:130px; font-family:ui-monospace,Menlo,monospace; font-size:15px; font-weight:700; text-align:right;
     background:var(--up); border:1px solid var(--line); border-radius:8px; color:var(--text); padding:9px 10px;}
   .compbtns{display:flex; gap:8px; margin-top:2px;}
+  .skiprow{display:flex; align-items:center; gap:9px; font-size:13px; color:var(--dim); padding:2px 0;}
+  .skiprow input{width:19px; height:19px; accent-color:var(--orange);}
   .smallbtn{flex:1; font-family:ui-monospace,Menlo,monospace; font-size:13px; font-weight:600; padding:11px 0; border-radius:9px;
     background:var(--up); border:1px solid var(--line);}
   .smallbtn.primary{background:var(--orange); color:var(--orange-text); border-color:var(--orange);}
@@ -364,6 +366,7 @@ function calibration(){
   let sum=0, count=0;
   for (const v of Object.values(state.weeks)){
     if (!v.actual || !(v.actual.net>0)) continue;
+    if (v.actual.skip) continue; // marked unusual (makeup pay, bonus) — don't learn from it
     const th = (v.hours||[]).reduce((a,b)=>a+b,0);
     if (th<=0) continue;
     const raw = calcPayRaw(v.hours||[], ratesForW(v));
@@ -494,14 +497,15 @@ function renderWeek(){
     const a = (week && week.actual) || {};
     let resultHtml = '';
     if (a.net > 0){
-      const rawP = calcPayRaw(total, s);
+      const rawP = calcPayRaw(hours, s);
       const diff = p.net - a.net;
       const grossOk = !(a.gross>0) || Math.abs(a.gross - rawP.gross) <= 0.5;
       resultHtml = '<div class="compresult" style="margin-bottom:10px">'
         + '<div>Estimated: <b>$'+money(p.net)+'</b> \u00B7 Actual: <b class="good">$'+money(a.net)+'</b></div>'
         + '<div class="'+(Math.abs(diff)<=2?'good':'warn')+'">Off by '+(diff>=0?'+':'\u2212')+'$'+money(Math.abs(diff))+'</div>'
-        + (!grossOk ? '<div class="warn">\u26A0 Gross doesn\u2019t match (est $'+money(rawP.gross)+' vs $'+money(a.gross)+') \u2014 check your hours. This week is excluded from calibration.</div>'
-                    : '<div class="dimtext">Counted in auto-calibration \u2713</div>')
+        + (a.skip ? '<div class="dimtext">Marked unusual \u2014 excluded from calibration</div>'
+          : !grossOk ? '<div class="warn">\u26A0 Gross doesn\u2019t match (est $'+money(rawP.gross)+' vs $'+money(a.gross)+') \u2014 check your hours. This week is excluded from calibration.</div>'
+                     : '<div class="dimtext">Counted in auto-calibration \u2713</div>')
         + '</div>';
     }
     comp.innerHTML = resultHtml
@@ -510,6 +514,7 @@ function renderWeek(){
       + '<input class="compinput" id="actNet" type="number" inputmode="decimal" step="0.01" placeholder="0.00" value="'+(a.net||'')+'"></div>'
       + '<div class="comprow"><label for="actGross">Actual gross (optional)</label>'
       + '<input class="compinput" id="actGross" type="number" inputmode="decimal" step="0.01" placeholder="0.00" value="'+(a.gross||'')+'"></div>'
+      + '<label class="skiprow"><input type="checkbox" id="actSkip"'+(a.skip?' checked':'')+'> Unusual check (makeup pay, bonus\u2026) \u2014 don\u2019t use for calibration</label>'
       + '<div class="compbtns">'
       + '<button class="smallbtn primary" id="saveActual">Save</button>'
       + (a.net>0 ? '<button class="smallbtn danger" id="removeActual">Remove</button>' : '')
@@ -594,9 +599,20 @@ function renderHistory(){
   if (count>0){
     const avgG=g/count, avgN=n/count, avgH=h/count;
     const sg = state.settings.savingsGoal||0;
+
+    // Expected total for THIS year: what's earned so far + avg week x remaining unlogged weeks
+    const loggedKeys = new Set(rows.filter(r=>r.d.getFullYear()===year).map(r=>r.k));
+    let remaining = 0;
+    for (let d = weekEndSat(new Date()); d.getFullYear()===year; d.setDate(d.getDate()+7)){
+      if (!loggedKeys.has(toKey(d))) remaining++;
+    }
+    const expG = g + avgG*remaining, expN = n + avgN*remaining;
+
     const cells = [
-      ['Gross / year','$'+money(avgG*52),'var(--text)'],
-      ['Take-home / year','$'+money(avgN*52),'var(--green)'],
+      ['Expected '+year+' gross','$'+money(expG),'var(--text)'],
+      ['Expected '+year+' take-home','$'+money(expN),'var(--green)'],
+      ['Full-year pace (gross)','$'+money(avgG*52),'var(--dim)'],
+      ['Full-year pace (take-home)','$'+money(avgN*52),'var(--dim)'],
       ['Avg hrs / week', (Math.round(avgH*10)/10).toString(),'var(--text)'],
       ['Avg check','$'+money(avgN),'var(--dim)'],
     ];
@@ -605,7 +621,7 @@ function renderHistory(){
       cells.push(['To live on / week','$'+money(Math.max(0,avgN-sg)),'var(--text)']);
     }
     projGrid.innerHTML = cells.map(([l,v,c])=>'<div><div class="glabel">'+l+'</div><div class="gval" style="color:'+c+'">'+v+'</div></div>').join('');
-    projNote.textContent = 'Your yearly pace if every week looks like your average logged week ('+count+' week'+(count===1?'':'s')+' so far). More weeks = sharper estimate.';
+    projNote.textContent = 'Expected '+year+' = earned so far + your average week \u00D7 '+remaining+' weeks left this year. Full-year pace = what a complete year at this rate would look like.';
   } else {
     projGrid.innerHTML = '';
     projNote.textContent = 'Log a week or two and this will project your yearly pay.';
@@ -845,9 +861,10 @@ document.addEventListener('click', (e)=>{
   if (t.id==='saveActual'){
     const net = parseFloat(document.getElementById('actNet').value)||0;
     const gross = parseFloat(document.getElementById('actGross').value)||0;
+    const skip = !!(document.getElementById('actSkip') && document.getElementById('actSkip').checked);
     if (net>0){
       const w = touchWeek();
-      w.actual = { net, gross };
+      w.actual = { net, gross, skip };
       save();
     }
     renderWeek();
