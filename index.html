@@ -81,8 +81,15 @@
 
   .day{background:var(--card); border:1px solid var(--line); border-radius:12px; margin-bottom:8px; overflow:hidden; transition:border-color .15s;}
   .day.off{opacity:.4; pointer-events:none;}
+  .day.confirm{border-color:var(--red);}
+  .confirmbody{display:flex; align-items:center; gap:10px; padding:0 12px 14px;}
+  .confirmtext{flex:1; font-size:14px; color:var(--red);}
+  .confirmbtn{font-family:ui-monospace,Menlo,monospace; font-size:14px; font-weight:700; padding:11px 18px; border-radius:9px;}
+  .confirmbtn.del{background:var(--red); color:#fff;}
+  .confirmbtn.keep{background:var(--up); border:1px solid var(--line); color:var(--text);}
   .day.open{background:var(--up); border-color:var(--orange);}
-  .dayhead{width:100%; display:flex; align-items:center; justify-content:space-between; padding:14px 16px; background:none; font-size:15px;}
+  .dayhead{width:100%; display:flex; align-items:center; justify-content:space-between; padding:14px 16px; background:none; font-size:15px;
+    -webkit-user-select:none; user-select:none; -webkit-touch-callout:none;}
   .dayname{font-family:ui-monospace,Menlo,monospace; font-size:12px; color:var(--dim); width:76px; text-align:left; display:inline-block;}
   .dayname.today{color:var(--orange);}
   .daydate{color:var(--text); font-weight:700; font-size:13px;}
@@ -402,6 +409,8 @@ const DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 
 let weekEnd = weekEndSat(new Date());
 let openDay = null;
+let confirmDay = null; // day pending delete confirmation (via long-press)
+let lpFired = false;   // suppresses the tap that follows a long-press
 let showBd = false;
 let showComp = false;
 
@@ -542,15 +551,23 @@ function renderWeek(){
     const note = notes[i] || '';
     const dayOff = (i===0 && !sundayOn && h<=0);
     const open = openDay===i && !dayOff;
+    const confirming = confirmDay===i;
     const card = document.createElement('div');
-    card.className = 'day'+(open?' open':'')+(dayOff?' off':'');
+    card.className = 'day'+(open?' open':'')+(dayOff?' off':'')+(confirming?' confirm':'');
     card.innerHTML =
       '<button class="dayhead" data-day="'+i+'"'+(dayOff?' tabindex="-1" aria-disabled="true"':'')+'>'
       + '<span><span class="dayname'+(isToday?' today':'')+'">'+DAYS[d.getDay()]+' <span class="daydate">'+fmtShort(d)+'</span></span>'
       + (isToday?'<span class="todaytag">TODAY</span>':'') + '</span>'
       + '<span class="dayhrs'+(h>0?'':' empty')+'">'+(h>0? h+' hrs':'\u2014')+'</span></button>'
-      + (!open && note ? '<span class="daynote-preview">\uD83D\uDCDD '+escapeHtml(note)+'</span>' : '')
-      + (open ?
+      + (confirming ?
+        '<div class="confirmbody">'
+        + '<span class="confirmtext">Clear '+DAYS[d.getDay()]+' '+fmtShort(d)+' \u2014 '+h+' hrs?'+(note?' (note kept)':'')+'</span>'
+        + '<button class="confirmbtn keep" data-canceldel="'+i+'">Keep</button>'
+        + '<button class="confirmbtn del" data-confirmdel="'+i+'">Clear</button>'
+        + '</div>'
+      : '')
+      + (!open && !confirming && note ? '<span class="daynote-preview">\uD83D\uDCDD '+escapeHtml(note)+'</span>' : '')
+      + (open && !confirming ?
         '<div class="daybody">'
         + '<div class="chiprow">'+[8,9,10,11,12].map(v=>'<button class="chip'+(h===v?' on':'')+'" data-set="'+i+':'+v+'">'+v+'</button>').join('')+'</div>'
         + '<div class="chiprow">'
@@ -855,7 +872,7 @@ document.addEventListener('click', (e)=>{
   if (t.id==='prevWeek' || t.id==='nextWeek'){
     const dir = t.id==='nextWeek' ? 1 : -1;
     weekEnd.setDate(weekEnd.getDate() + dir*7);
-    openDay=null; showComp=false; renderWeek(); weekSlide(dir); return;
+    openDay=null; confirmDay=null; showComp=false; renderWeek(); weekSlide(dir); return;
   }
   if (t.id==='toggleComp'){ showComp=!showComp; renderWeek(); return; }
   if (t.id==='saveActual'){
@@ -894,8 +911,18 @@ document.addEventListener('click', (e)=>{
   if (t.id==='exportBtn'){ doExport(); return; }
   if (t.id==='shareBtn'){ shareTimesheet(); return; }
   if (t.id==='importBtn'){ document.getElementById('importFile').click(); return; }
+  if (t.dataset.confirmdel!==undefined){
+    setDay(+t.dataset.confirmdel, 0);
+    confirmDay = null; renderWeek(); return;
+  }
+  if (t.dataset.canceldel!==undefined){
+    confirmDay = null; renderWeek(); return;
+  }
   if (t.dataset.day!==undefined){
-    const i = +t.dataset.day; openDay = (openDay===i? null : i); renderWeek(); return;
+    if (lpFired){ lpFired=false; return; } // this tap was the tail of a long-press
+    const i = +t.dataset.day;
+    confirmDay = null;
+    openDay = (openDay===i? null : i); renderWeek(); return;
   }
   if (t.dataset.set){ const [i,v] = t.dataset.set.split(':').map(Number); setDay(i,v); return; }
   if (t.dataset.adj){ const [i,dv] = t.dataset.adj.split(':').map(Number); setDay(i, getHours()[i]+dv); return; }
@@ -935,16 +962,45 @@ document.getElementById('payCard').addEventListener('click', (e)=>{
   renderWeek();
 });
 
-// ============ SWIPE BETWEEN WEEKS ============
+// ============ GESTURES ============
+// Swipe left/right: move between weeks (only job of horizontal swipes).
+// Long-press (0.5s) on a day with hours: ask to clear it. No gesture overlap.
 (() => {
   const zone = document.getElementById('screen-week');
   let x0=0, y0=0, tracking=false;
+  let lpTimer=null;
+
+  const cancelLP = () => { if (lpTimer){ clearTimeout(lpTimer); lpTimer=null; } };
+
   zone.addEventListener('touchstart', (e)=>{
     if (e.target.closest('input')) { tracking=false; return; } // don't fight text cursors
     const t = e.touches[0];
     x0=t.clientX; y0=t.clientY; tracking=true;
+
+    // Arm long-press if the touch starts on a logged day's header
+    const head = e.target.closest('.dayhead');
+    if (head && head.dataset.day!==undefined){
+      const idx = +head.dataset.day;
+      if ((getHours()[idx]||0) > 0 && confirmDay!==idx){
+        lpTimer = setTimeout(()=>{
+          lpTimer=null; lpFired=true;
+          confirmDay = idx; openDay = null; showComp=false;
+          renderWeek();
+        }, 500);
+      }
+    }
   }, {passive:true});
+
+  zone.addEventListener('touchmove', (e)=>{
+    if (!lpTimer) return;
+    const t = e.touches[0];
+    if (Math.abs(t.clientX-x0) > 10 || Math.abs(t.clientY-y0) > 10) cancelLP(); // finger moved = scroll/swipe, not a press
+  }, {passive:true});
+
+  zone.addEventListener('touchcancel', cancelLP, {passive:true});
+
   zone.addEventListener('touchend', (e)=>{
+    cancelLP();
     if (!tracking) return;
     tracking=false;
     const t = e.changedTouches[0];
@@ -952,7 +1008,7 @@ document.getElementById('payCard').addEventListener('click', (e)=>{
     if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy)*1.5){
       const dir = dx < 0 ? 1 : -1; // swipe left = next week
       weekEnd.setDate(weekEnd.getDate() + dir*7);
-      openDay=null; showComp=false; renderWeek(); weekSlide(dir);
+      openDay=null; confirmDay=null; showComp=false; renderWeek(); weekSlide(dir);
     }
   }, {passive:true});
 })();
