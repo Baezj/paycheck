@@ -404,6 +404,8 @@ function calibration(){
     const raw = calcPayRaw(v.hours||[], ratesForW(v));
     // If a gross was entered, only trust the comparison when it matches our computed gross
     if (v.actual.gross>0 && Math.abs(v.actual.gross - raw.gross) > 0.5) continue;
+    // No gross entered + suspiciously large gap = likely an hours mismatch — don't learn from it
+    if (!(v.actual.gross>0) && Math.abs(raw.net - v.actual.net) > 10) continue;
     sum += raw.net - v.actual.net; count++;
   }
   const offset = count>0 ? sum/count : 0;
@@ -549,6 +551,7 @@ function renderWeek(){
         + '<div class="'+(Math.abs(diff)<=2?'good':'warn')+'">Off by '+(diff>=0?'+':'\u2212')+'$'+money(Math.abs(diff))+'</div>'
         + (a.skip ? '<div class="dimtext">Marked unusual \u2014 excluded from calibration</div>'
           : !grossOk ? '<div class="warn">\u26A0 Gross doesn\u2019t match (est $'+money(rawP.gross)+' vs $'+money(a.gross)+') \u2014 check your hours. This week is excluded from calibration.</div>'
+          : (!(a.gross>0) && Math.abs(rawP.net - a.net) > 10) ? '<div class="warn">\u26A0 Big gap \u2014 auto-excluded from calibration (usually means payroll paid different hours than you logged). If your hours ARE right, enter the gross from the stub to verify and count this check.</div>'
                      : '<div class="dimtext">Counted in auto-calibration \u2713</div>')
         + '</div>';
     }
