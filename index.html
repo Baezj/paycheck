@@ -231,6 +231,17 @@
   <section id="screen-settings" class="hidden">
     <h2>Settings</h2>
 
+    <div class="panel" style="margin-bottom:16px">
+      <div class="eyebrow" style="margin-bottom:10px">Quick pay calculator</div>
+      <div class="comprow" style="margin-bottom:8px"><label for="qcReg">Regular hours</label>
+        <input class="compinput" id="qcReg" type="number" inputmode="decimal" step="0.5" min="0" placeholder="40" data-qc="1"></div>
+      <div class="comprow" style="margin-bottom:8px"><label for="qcOt">Overtime hours (incl. Saturday)</label>
+        <input class="compinput" id="qcOt" type="number" inputmode="decimal" step="0.5" min="0" placeholder="0" data-qc="1"></div>
+      <div class="comprow" style="margin-bottom:10px"><label for="qcDt">Sunday hours (2x)</label>
+        <input class="compinput" id="qcDt" type="number" inputmode="decimal" step="0.5" min="0" placeholder="0" data-qc="1"></div>
+      <div class="compresult" id="qcResult" style="border-top:1px solid var(--line); padding-top:10px"></div>
+    </div>
+
     <div class="setrow">
       <label>Appearance</label>
       <div class="seg" id="themeSeg">
@@ -693,6 +704,25 @@ function syncSunSeg(){
     b.classList.toggle('on', (b.dataset.sunPick==='on') === !!state.settings.workSundays));
 }
 
+// ============ QUICK CALCULATOR ============
+function updateQuickCalc(){
+  const out = document.getElementById('qcResult');
+  if (!out) return;
+  const s = state.settings;
+  const reg = parseFloat(document.getElementById('qcReg').value)||0;
+  const ot = parseFloat(document.getElementById('qcOt').value)||0;
+  const dt = parseFloat(document.getElementById('qcDt').value)||0;
+  const hrs = reg+ot+dt;
+  if (hrs<=0){ out.innerHTML = '<span class="dimtext">Enter hours above to see the pay.</span>'; return; }
+  const gross = reg*s.baseRate + ot*s.otRate + dt*(s.sundayRate||s.baseRate*2);
+  const c = calibration();
+  const fwh = calcFWH(gross) + c.offset;
+  const net = gross - fwh - gross*.062 - gross*.0145 - Math.max(0,gross*.05-1.92) - gross*.0046 - hrs*s.duesPerHr - hrs*s.lplPerHr;
+  out.innerHTML =
+    '<div>'+hrs+' hrs \u2192 Gross: <b>$'+money(gross)+'</b></div>'
+    + '<div style="margin-top:4px">Take-home: <b class="good" style="font-size:17px">$'+money(net)+'</b></div>';
+}
+
 // ============ RENDER: SETTINGS ============
 function renderSettings(){
   const fields = [
@@ -718,6 +748,7 @@ function renderSettings(){
     ? 'Auto-calibration: estimates adjusted by <b>'+(c.offset>=0?'\u2212':'+')+'$'+money(Math.abs(c.offset))+'</b> based on <b>'+c.count+'</b> verified check'+(c.count===1?'':'s')+'. Every real check you enter makes it sharper.'
     : 'No verified checks yet. Enter your actual net on a week (\u2713 Actual check) and estimates will self-tune.';
   syncSunSeg();
+  updateQuickCalc();
   applyTheme();
 }
 
@@ -960,13 +991,14 @@ document.addEventListener('click', (e)=>{
 });
 document.addEventListener('input', (e)=>{
   const el = e.target;
+  if (el.dataset && el.dataset.qc){ updateQuickCalc(); return; }
   if (el.dataset && el.dataset.textkey){
     state.settings[el.dataset.textkey] = el.value;
     save(); return;
   }
   if (el.dataset && el.dataset.key){
     state.settings[el.dataset.key] = parseFloat(el.value)||0;
-    save(); return;
+    save(); updateQuickCalc(); return;
   }
   if (el.dataset && el.dataset.note!==undefined){ setNote(+el.dataset.note, el.value); return; }
 });
