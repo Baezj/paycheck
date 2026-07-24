@@ -743,9 +743,12 @@ function updateShiftCalc(){
   const ot = Math.max(0, elapsed - cap) + credits;
   const logAs = elapsed + credits;
   const pay = reg*s.baseRate + ot*s.otRate;
+  // What this day adds to the weekly take-home: marginal tax rates (12% fed, 6.2% SS,
+  // 1.45% Medicare, 5% MA, 0.46% PFL) plus dues/LPL on the paid hours
+  const netAdd = pay*(1 - .12 - .062 - .0145 - .05 - .0046) - logAs*(s.duesPerHr + s.lplPerHr);
   out.innerHTML =
     '<div>Worked '+elapsed+' hrs'+(credits>0 ? ' + '+credits+' OT break credit' : '')+'</div>'
-    + '<div style="margin-top:4px">'+reg+' reg + '+ot+' OT \u2192 <b>$'+money(pay)+'</b> gross</div>'
+    + '<div style="margin-top:4px">'+reg+' reg + '+ot+' OT \u2192 <b>$'+money(pay)+'</b> gross \u00B7 \u2248 <b class="good">$'+money(netAdd)+'</b> take-home</div>'
     + '<div style="margin-top:6px" class="good">\uD83D\uDCDD Log this day as: <b>'+logAs+' hrs</b></div>'
     + (credits>0 && elapsed<cap ? '<div class="dimtext" style="margin-top:4px">Short day + break credit: logging the total counts the credit as regular time (slightly low). Rare case \u2014 note it on the day.</div>' : '');
 }
