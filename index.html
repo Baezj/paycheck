@@ -97,6 +97,7 @@
   .todaytag{font-size:10px; font-family:ui-monospace,Menlo,monospace; color:var(--orange); margin-left:8px;}
   .dayhrs{font-family:ui-monospace,Menlo,monospace; font-size:17px; font-weight:700;}
   .dayhrs.empty{color:var(--dim);}
+  .dayot{display:block; font-family:ui-monospace,Menlo,monospace; font-size:11px; font-weight:600; color:var(--orange); text-align:right; margin-top:2px;}
   .daynote-preview{display:block; font-size:12px; color:var(--dim); padding:0 16px 12px; margin-top:-6px; text-align:left; font-style:italic;
     white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
   .daybody{padding:0 12px 14px;}
@@ -432,6 +433,16 @@ function setDay(i, v){
 }
 function setNote(i, text){ const w = touchWeek(); w.notes[i] = text; save(); }
 
+// Per-day premium label: how many of this day's hours are OT / double time
+// (weekdays: over the daily cap; Saturday: all OT; Sunday: all double time)
+function dayPremium(i, h, s){
+  if (h<=0) return '';
+  if (i===0) return h+' @ 2x';
+  if (i===6) return h+' @ OT';
+  const extra = h - (s.dailyOtThreshold || 8);
+  return extra>0 ? '+'+extra+' OT' : '';
+}
+
 // Directional slide when changing weeks (dir: 1 = forward, -1 = back)
 function weekSlide(dir){
   const el = document.getElementById('screen-week');
@@ -558,7 +569,9 @@ function renderWeek(){
       '<button class="dayhead" data-day="'+i+'"'+(dayOff?' tabindex="-1" aria-disabled="true"':'')+'>'
       + '<span><span class="dayname'+(isToday?' today':'')+'">'+DAYS[d.getDay()]+' <span class="daydate">'+fmtShort(d)+'</span></span>'
       + (isToday?'<span class="todaytag">TODAY</span>':'') + '</span>'
-      + '<span class="dayhrs'+(h>0?'':' empty')+'">'+(h>0? h+' hrs':'\u2014')+'</span></button>'
+      + '<span style="text-align:right"><span class="dayhrs'+(h>0?'':' empty')+'">'+(h>0? h+' hrs':'\u2014')+'</span>'
+      + (dayPremium(i,h,s) ? '<span class="dayot">'+dayPremium(i,h,s)+'</span>' : '')
+      + '</span></button>'
       + (confirming ?
         '<div class="confirmbody">'
         + '<span class="confirmtext">Clear '+DAYS[d.getDay()]+' '+fmtShort(d)+' \u2014 '+h+' hrs?'+(note?' (note kept)':'')+'</span>'
@@ -806,7 +819,14 @@ function shareTimesheet(){
     ctx.fillStyle = h>0 ? '#1A1F26' : '#B7BEC9';
     ctx.font = '800 38px ui-monospace, Menlo, monospace';
     const hrsTxt = h>0 ? h+' hrs' : '\u2014';
-    ctx.fillText(hrsTxt, W-PAD-ctx.measureText(hrsTxt).width, y);
+    const wHrs = ctx.measureText(hrsTxt).width;
+    ctx.fillText(hrsTxt, W-PAD-wHrs, y);
+    const prem = dayPremium(i, h, s);
+    if (prem){
+      ctx.fillStyle = '#E86A00';
+      ctx.font = '700 26px ui-monospace, Menlo, monospace';
+      ctx.fillText(prem, W-PAD-wHrs-24-ctx.measureText(prem).width, y);
+    }
     // note lines
     ctx.fillStyle = '#68717F';
     ctx.font = '400 30px -apple-system, Helvetica, Arial';
