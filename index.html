@@ -139,6 +139,8 @@
   .setrow{background:var(--card); border:1px solid var(--line); border-radius:12px; padding:12px 16px; margin-bottom:8px; display:flex; justify-content:space-between; align-items:center; gap:10px;}
   .setrow label{font-size:14px;}
   .setrow input{width:96px; font-family:ui-monospace,Menlo,monospace; font-size:15px; font-weight:700; text-align:right; background:var(--up); border:1px solid var(--line); border-radius:8px; color:var(--text); padding:8px 10px;}
+  input[type="time"]{color-scheme:dark; width:130px;}
+  [data-theme="light"] input[type="time"]{color-scheme:light;}
   .seg{display:flex; gap:6px;}
   .segbtn{font-family:ui-monospace,Menlo,monospace; font-size:13px; font-weight:600; padding:9px 14px; border-radius:8px; background:var(--up); border:1px solid var(--line); color:var(--dim);}
   .segbtn.on{background:var(--orange); color:var(--orange-text); border-color:var(--orange);}
@@ -240,6 +242,17 @@
       <div class="comprow" style="margin-bottom:10px"><label for="qcDt">Sunday hours (2x)</label>
         <input class="compinput" id="qcDt" type="number" inputmode="decimal" step="0.5" min="0" placeholder="0" data-qc="1"></div>
       <div class="compresult" id="qcResult" style="border-top:1px solid var(--line); padding-top:10px"></div>
+    </div>
+
+    <div class="panel" style="margin-bottom:16px">
+      <div class="eyebrow" style="margin-bottom:10px">Shift calculator (start / end + breaks)</div>
+      <div class="comprow" style="margin-bottom:8px"><label for="shStart">Started work</label>
+        <input class="compinput" id="shStart" type="time" value="07:00" data-sh="1"></div>
+      <div class="comprow" style="margin-bottom:10px"><label for="shEnd">Finished work</label>
+        <input class="compinput" id="shEnd" type="time" value="15:00" data-sh="1"></div>
+      <label class="skiprow"><input type="checkbox" id="shCoffee" data-sh="1"> Worked through coffee break (+0.5 OT)</label>
+      <label class="skiprow" style="margin-bottom:8px"><input type="checkbox" id="shLunch" data-sh="1"> Worked through lunch (+1 OT)</label>
+      <div class="compresult" id="shResult" style="border-top:1px solid var(--line); padding-top:10px"></div>
     </div>
 
     <div class="setrow">
@@ -704,6 +717,36 @@ function syncSunSeg(){
     b.classList.toggle('on', (b.dataset.sunPick==='on') === !!state.settings.workSundays));
 }
 
+// ============ SHIFT CALCULATOR ============
+// Rules from Juan's contract: breaks are paid (7-3 day = 8 hrs).
+// Working through coffee = +0.5 OT on top; through lunch = +1.0 OT on top.
+function updateShiftCalc(){
+  const out = document.getElementById('shResult');
+  if (!out) return;
+  const s = state.settings;
+  const sv = document.getElementById('shStart').value;
+  const ev = document.getElementById('shEnd').value;
+  if (!sv || !ev){ out.innerHTML = '<span class="dimtext">Enter start and end times.</span>'; return; }
+  const [sh,sm] = sv.split(':').map(Number);
+  const [eh,em] = ev.split(':').map(Number);
+  let elapsed = (eh*60+em - (sh*60+sm))/60;
+  if (elapsed < 0) elapsed += 24; // overnight shift
+  elapsed = Math.round(elapsed*4)/4;
+  if (elapsed <= 0){ out.innerHTML = '<span class="dimtext">End time must be after start time.</span>'; return; }
+  const credits = (document.getElementById('shCoffee').checked ? 0.5 : 0)
+                + (document.getElementById('shLunch').checked ? 1 : 0);
+  const cap = s.dailyOtThreshold || 8;
+  const reg = Math.min(elapsed, cap);
+  const ot = Math.max(0, elapsed - cap) + credits;
+  const logAs = elapsed + credits;
+  const pay = reg*s.baseRate + ot*s.otRate;
+  out.innerHTML =
+    '<div>Worked '+elapsed+' hrs'+(credits>0 ? ' + '+credits+' OT break credit' : '')+'</div>'
+    + '<div style="margin-top:4px">'+reg+' reg + '+ot+' OT \u2192 <b>$'+money(pay)+'</b> gross</div>'
+    + '<div style="margin-top:6px" class="good">\uD83D\uDCDD Log this day as: <b>'+logAs+' hrs</b></div>'
+    + (credits>0 && elapsed<cap ? '<div class="dimtext" style="margin-top:4px">Short day + break credit: logging the total counts the credit as regular time (slightly low). Rare case \u2014 note it on the day.</div>' : '');
+}
+
 // ============ QUICK CALCULATOR ============
 function updateQuickCalc(){
   const out = document.getElementById('qcResult');
@@ -749,6 +792,7 @@ function renderSettings(){
     : 'No verified checks yet. Enter your actual net on a week (\u2713 Actual check) and estimates will self-tune.';
   syncSunSeg();
   updateQuickCalc();
+  updateShiftCalc();
   applyTheme();
 }
 
@@ -992,6 +1036,7 @@ document.addEventListener('click', (e)=>{
 document.addEventListener('input', (e)=>{
   const el = e.target;
   if (el.dataset && el.dataset.qc){ updateQuickCalc(); return; }
+  if (el.dataset && el.dataset.sh){ updateShiftCalc(); return; }
   if (el.dataset && el.dataset.textkey){
     state.settings[el.dataset.textkey] = el.value;
     save(); return;
@@ -1001,6 +1046,11 @@ document.addEventListener('input', (e)=>{
     save(); updateQuickCalc(); return;
   }
   if (el.dataset && el.dataset.note!==undefined){ setNote(+el.dataset.note, el.value); return; }
+});
+document.addEventListener('change', (e)=>{
+  const el = e.target;
+  if (el.dataset && el.dataset.sh){ updateShiftCalc(); return; }
+  if (el.dataset && el.dataset.qc){ updateQuickCalc(); return; }
 });
 document.getElementById('importFile').addEventListener('change', (e)=>{
   if (e.target.files && e.target.files[0]) doImport(e.target.files[0]);
