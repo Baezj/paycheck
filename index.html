@@ -863,7 +863,7 @@ function shareTimesheet(){
     noteLines[i] = nl;
     bodyH += 92 + nl.length*40;
   }
-  const H = 300 + bodyH + 210;
+  const H = 300 + bodyH + 290;
   cv.width = W; cv.height = H;
 
   // Background
@@ -910,15 +910,18 @@ function shareTimesheet(){
     }
     // note lines
     ctx.fillStyle = '#68717F';
-    ctx.font = '400 30px -apple-system, Helvetica, Arial';
+    ctx.font = 'italic 400 30px -apple-system, Helvetica, Arial';
     for (const ln of noteLines[i]){ y += 40; ctx.fillText(ln, PAD, y); }
     y += 32;
     ctx.strokeStyle = '#EDEFF3'; ctx.lineWidth = 1;
     ctx.beginPath(); ctx.moveTo(PAD, y-6); ctx.lineTo(W-PAD, y-6); ctx.stroke();
   }
 
-  // Totals
-  y += 40;
+  // Totals — set off with a strong divider
+  y += 26;
+  ctx.strokeStyle = '#1A1F26'; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.moveTo(PAD, y-8); ctx.lineTo(W-PAD, y-8); ctx.stroke();
+  y += 30;
   ctx.fillStyle = '#1A1F26';
   ctx.font = '800 40px ui-monospace, Menlo, monospace';
   ctx.fillText('Total: '+total+' hrs', PAD, y);
@@ -926,6 +929,12 @@ function shareTimesheet(){
   ctx.fillStyle = (ot>0||dt>0) ? '#E86A00' : '#68717F';
   ctx.font = '600 30px ui-monospace, Menlo, monospace';
   ctx.fillText(sub, PAD, y+48);
+
+  // Footer: when this was generated (useful if hours are ever disputed)
+  ctx.fillStyle = '#B7BEC9';
+  ctx.font = '400 22px ui-monospace, Menlo, monospace';
+  const gen = new Date();
+  ctx.fillText('Generated '+(gen.getMonth()+1)+'/'+gen.getDate()+'/'+gen.getFullYear(), PAD, y+100);
 
   const fname = 'timesheet-'+toKey(weekEnd)+'.png';
   cv.toBlob(async (blob)=>{
