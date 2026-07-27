@@ -741,7 +741,12 @@ function updateShiftCalc(){
   const ev = document.getElementById('shEnd').value;
   if (!sv || !ev){ out.innerHTML = '<span class="dimtext">Enter start and end times.</span>'; return; }
   const [sh,sm] = sv.split(':').map(Number);
-  const [eh,em] = ev.split(':').map(Number);
+  let [eh,em] = ev.split(':').map(Number);
+  // Payroll rounds clock-out UP to the next half hour (4:12 -> 4:30, 4:31 -> 5:00)
+  if (em % 30 !== 0){
+    em = em < 30 ? 30 : 0;
+    if (em === 0) eh = (eh + 1) % 24;
+  }
   let elapsed = (eh*60+em - (sh*60+sm))/60;
   if (elapsed < 0) elapsed += 24; // overnight shift
   elapsed = Math.round(elapsed*4)/4;
@@ -756,8 +761,9 @@ function updateShiftCalc(){
   // What this day adds to the weekly take-home: marginal tax rates (12% fed, 6.2% SS,
   // 1.45% Medicare, 5% MA, 0.46% PFL) plus dues/LPL on the paid hours
   const netAdd = pay*(1 - .12 - .062 - .0145 - .05 - .0046) - logAs*(s.duesPerHr + s.lplPerHr);
+  const roundedNote = em !== Number(ev.split(':')[1]) ? ' (rounds to '+(eh%12===0?12:eh%12)+':'+String(em).padStart(2,'0')+(eh<12?'am':'pm')+')' : '';
   out.innerHTML =
-    '<div>Worked '+elapsed+' hrs'+(credits>0 ? ' + '+credits+' OT break credit' : '')+'</div>'
+    '<div>Worked '+elapsed+' hrs'+roundedNote+(credits>0 ? ' + '+credits+' OT break credit' : '')+'</div>'
     + '<div style="margin-top:4px">'+reg+' reg + '+ot+' OT \u2192 <b>$'+money(pay)+'</b> gross \u00B7 \u2248 <b class="good">$'+money(netAdd)+'</b> take-home</div>'
     + '<div style="margin-top:6px" class="good">\uD83D\uDCDD Log this day as: <b>'+logAs+' hrs</b></div>'
     + (credits>0 && elapsed<cap ? '<div class="dimtext" style="margin-top:4px">Short day + break credit: logging the total counts the credit as regular time (slightly low). Rare case \u2014 note it on the day.</div>' : '');
