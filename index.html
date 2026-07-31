@@ -1382,6 +1382,19 @@ function bIconFor(t){
   for (const [re, ic] of BICON_KEYS){ if (re.test(n)) return ic; }
   return (BCATS[t.cat]||BCATS.other).ic; // fall back to the category icon
 }
+// Same idea for the category itself — the name suggests, your tap decides
+const BCAT_KEYS = [
+  [/klarna|afterpay|affirm|sezzle|\bzip\b|loan|lending|sofi|upstart|onemain|dcu/, 'loan'],
+  [/visa|master\s?card|amex|discover|credit|\bcard\b|capital\s?one|chase|citi/, 'card'],
+  [/rent|mortgage|lease|hoa|apart/, 'housing'],
+  [/electric|power|\bgas\b|water|sewer|internet|wifi|phone|mobile|utility|comcast|xfinity|fios|verizon|t-?mobile|at&t|\batt\b|national grid|eversource/, 'utility'],
+  [/netflix|hulu|disney|youtube|hbo|\bmax\b|peacock|paramount|spotify|pandora|subscription|prime|apple one|icloud|gym|planet fitness|crunch/, 'sub'],
+];
+function bCatFor(name){
+  const n = (name||'').toLowerCase();
+  for (const [re, cat] of BCAT_KEYS){ if (re.test(n)) return cat; }
+  return 'other';
+}
 const BMONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 const BDOW = ['Su','Mo','Tu','We','Th','Fr','Sa'];
 // Quick-add presets: [name, category, frequency]
@@ -2248,7 +2261,7 @@ function bBlankDraft(){
   return { name:'', cat:'other', freq:'monthly', amt:'', dueDay:1, dueMonth:new Date().getMonth(),
     anchor:bTodayKey(), autopay:false, varies:false, stmtDay:'', loanTotal:'', loanPaid:'', icon:'',
     creditLimit:'', balance:'', apr:'',
-    startNext:false, startTouched:false };
+    startNext:false, startTouched:false, catTouched:false };
 }
 function bEditorHtml(){
   const d = bDraft;
@@ -2262,8 +2275,8 @@ function bEditorHtml(){
     + '<div class="comprow" style="margin-bottom:8px"><label>Type</label><div class="seg" style="flex-wrap:wrap; justify-content:flex-end">'
     + Object.entries(BCATS).map(([k,c])=>'<button class="segbtn'+(d.cat===k?' on':'')+'" data-bcat="'+k+'">'+c.ic+'</button>').join('')
     + '</div></div>'
-    + '<div class="b-tmplsub" style="text-align:right; margin:-4px 0 8px">'+(BCATS[d.cat].label)+'</div>'
-    + '<div class="b-tmplsub" style="margin:0 0 4px">Icon \u2014 picked automatically from the name ('+bIconFor({name:d.name, cat:d.cat})+'), or choose:</div>'
+    + '<div class="b-tmplsub" id="bfCatLabel" style="text-align:right; margin:-4px 0 8px">'+(BCATS[d.cat].label)+'</div>'
+    + '<div class="b-tmplsub" style="margin:0 0 4px">Icon \u2014 picked automatically from the name (<span id="bfIconAuto">'+bIconFor({name:d.name, cat:d.cat})+'</span>), or choose:</div>'
     + '<div class="b-iconrow">'
     + '<button class="b-iconbtn auto'+(!d.icon?' on':'')+'" data-bicon="">Auto</button>'
     + BICONS.map(ic=>'<button class="b-iconbtn'+(d.icon===ic?' on':'')+'" data-bicon="'+ic+'">'+ic+'</button>').join('')
@@ -2402,7 +2415,7 @@ document.addEventListener('click', (e)=>{
     const q = BQUICK[+ds.bquick];
     if (q){
       bEdit='new'; bDraft=bBlankDraft(); bConfirmDel=false;
-      bDraft.name=q[0]; bDraft.cat=q[1]; bDraft.freq=q[2];
+      bDraft.name=q[0]; bDraft.cat=q[1]; bDraft.freq=q[2]; bDraft.catTouched=true;
       renderBills();
       const box=document.getElementById('bEditorBox'); if(box) box.scrollIntoView({behavior:'smooth', block:'start'});
       const nm=document.getElementById('bfAmt'); if(nm) nm.focus();
@@ -2467,13 +2480,13 @@ document.addEventListener('click', (e)=>{
     const t0 = bstate.templates[ds.bedit];
     if (t0){
       bEdit = ds.bedit; bConfirmDel=false;
-      bDraft = { ...bBlankDraft(), ...t0, amt:(t0.amt??'')+'', stmtDay:(t0.stmtDay??'')+'', loanTotal:(t0.loanTotal??'')+'', loanPaid:(t0.loanPaid??'')+'', creditLimit:(t0.creditLimit||'')+'', balance:(t0.balance||'')+'', apr:(t0.apr||'')+'' };
+      bDraft = { ...bBlankDraft(), ...t0, catTouched:true, amt:(t0.amt??'')+'', stmtDay:(t0.stmtDay??'')+'', loanTotal:(t0.loanTotal??'')+'', loanPaid:(t0.loanPaid??'')+'', creditLimit:(t0.creditLimit||'')+'', balance:(t0.balance||'')+'', apr:(t0.apr||'')+'' };
       renderBills();
       const box=document.getElementById('bEditorBox'); if(box) box.scrollIntoView({behavior:'smooth', block:'start'});
     }
     return;
   }
-  if (ds.bcat!==undefined){ bReadDraftInputs(); bDraft.cat = ds.bcat; renderBills(); return; }
+  if (ds.bcat!==undefined){ bReadDraftInputs(); bDraft.cat = ds.bcat; bDraft.catTouched = true; renderBills(); return; }
   if (ds.bicon!==undefined){ bReadDraftInputs(); bDraft.icon = ds.bicon; renderBills(); return; }
   if (ds.bstart!==undefined){ bReadDraftInputs(); bDraft.startNext = ds.bstart==='1'; bDraft.startTouched = true; renderBills(); return; }
   if (ds.bfreq!==undefined){ bReadDraftInputs(); bDraft.freq = ds.bfreq; renderBills(); return; }
@@ -2491,6 +2504,7 @@ document.addEventListener('click', (e)=>{
     bReadDraftInputs();
     const d = bDraft;
     if (!d.name.trim() || !(parseFloat(d.amt)>0)) return; // need a name and an amount
+    if (!d.catTouched) d.cat = bCatFor(d.name); // "DCU Loan" files itself under Loan
     const tmpl = {
       name: d.name.trim(), cat: d.cat, freq: d.freq,
       amt: parseFloat(d.amt)||0,
@@ -2535,6 +2549,17 @@ document.addEventListener('focusin', (e)=>{
 // Keep editor state while typing (so tapping a seg button doesn't wipe inputs)
 document.addEventListener('input', (e)=>{
   if (bDraft && e.target.id && e.target.id.startsWith('bf')) bReadDraftInputs();
+  if (bDraft && e.target.id === 'bfName'){
+    // surgical DOM updates only — a full re-render here would steal the keyboard
+    if (!bDraft.catTouched){
+      bDraft.cat = bCatFor(bDraft.name);
+      document.querySelectorAll('[data-bcat]').forEach(b=>b.classList.toggle('on', b.dataset.bcat===bDraft.cat));
+      const lbl = document.getElementById('bfCatLabel');
+      if (lbl) lbl.textContent = (BCATS[bDraft.cat]||BCATS.other).label;
+    }
+    const ih = document.getElementById('bfIconAuto');
+    if (ih) ih.textContent = bIconFor({name:bDraft.name, cat:bDraft.cat});
+  }
   if (e.target.id === 'bDailyCost'){
     bstate.settings.dailyCost = parseFloat(e.target.value)||0;
     bsave();
