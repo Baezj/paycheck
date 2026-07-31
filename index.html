@@ -1294,7 +1294,7 @@ document.getElementById('payCard').addEventListener('click', (e)=>{
 // the pay data ('paytracker:v1') — it only reads it for cash flow.
 // ==================================================================
 const BKEY = 'billtracker:v1';
-const BDEF = { templates:{}, payments:{}, overrides:{}, parking:{}, settings:{ paydayDow:5, palette:'ocean', payLag:1, dailyCost:0 }, ui:{ snapDismissed:false, lastTab:'week', sumOpen:false, crunchOpen:false, yearOpen:false } };
+const BDEF = { templates:{}, payments:{}, overrides:{}, parking:{}, settings:{ paydayDow:5, palette:'ocean', payLag:1, dailyCost:0 }, ui:{ snapDismissed:false, lastTab:'week', sumOpen:false, crunchOpen:false, yearOpen:false, stsOpen:false, backupSnooze:null } };
 let bstate = JSON.parse(JSON.stringify(BDEF));
 try {
   const bsaved = JSON.parse(localStorage.getItem(BKEY));
@@ -1748,10 +1748,13 @@ function bRenderSnapBanner(){
   if (hasData){
     const last = bstate.ui.lastExport;
     const days = last ? Math.floor((new Date() - fromKey(last)) / 864e5) : null;
-    if (days === null || days > 30){
+    const snooze = bstate.ui.backupSnooze;
+    const snoozed = snooze && Math.floor((new Date() - fromKey(snooze)) / 864e5) < 7; // quiet for a week per dismissal
+    if ((days === null || days > 30) && !snoozed){
       html += '<div class="panel" style="border-color:var(--orange); padding:12px 16px">'
         + '<div class="compresult"><span class="b-creep">\u26A0 '+(days===null ? 'No backup yet' : 'Last backup '+days+' days ago')
-        + '</span> \u2014 everything lives on this phone only. Settings \u2192 Export backup takes ten seconds.</div></div>';
+        + '</span> \u2014 everything lives on this phone only. Settings \u2192 Export backup takes ten seconds.</div>'
+        + '<div class="compbtns" style="margin-top:8px"><button class="smallbtn" data-bbaksnooze="1">Remind me in a week</button></div></div>';
     }
   }
   el.innerHTML = html;
@@ -1765,15 +1768,19 @@ function bRenderSts(){
       + '<div class="b-stsline">Add your bills below and this becomes your cash-flow headline: expected check \u2212 bills due before payday \u2212 savings goal.</div>';
     return;
   }
-  el.innerHTML = '<div class="eyebrow">Safe to spend until payday ('+BDOW[bstate.settings.paydayDow]+' '+bFmtDue(p.pd)+')</div>'
+  const stsOpen = !!bstate.ui.stsOpen;
+  el.innerHTML = '<button class="b-paneltog" data-btogsts="1">'
+    + '<span class="eyebrow">Safe to spend until payday ('+BDOW[bstate.settings.paydayDow]+' '+bFmtDue(p.pd)+')</span>'
+    + '<span class="b-togval">'+(stsOpen?'\u25BE':'the math \u25B8')+'</span></button>'
     + '<div class="b-sts '+(p.sts>=0?'good':'bad')+'">'+(p.sts<0?'\u2212':'')+'$'+money(Math.abs(p.sts))+'</div>'
-    + '<div class="b-stsline">Expected check ('+p.ec.basis+'): <b>$'+money(p.ec.amt)+'</b>'
+    + (!stsOpen ? (p.sts<0 ? '<div class="b-stsline"><span class="warn">\u26A0 Tight stretch \u2014 tap for the math.</span></div>' : '')
+    : '<div class="b-stsline">Expected check ('+p.ec.basis+'): <b>$'+money(p.ec.amt)+'</b>'
     + (p.overSum>0 ? '<br><span class="warn">Overdue to catch up: \u2212$'+money(p.overSum)+' ('+p.overN+' bill'+(p.overN===1?'':'s')+')</span>' : '')
     + '<br>Bills due by payday: <b>\u2212$'+money(p.dueSum)+'</b>'+(p.dueN? ' ('+p.dueN+' bill'+(p.dueN===1?'':'s')+')':'')
     + (p.work>0 ? '<br>Parking (\u2248'+p.wd+' day'+(p.wd===1?'':'s')+' \u00D7 your $'+money(p.dc)+' avg): <b>\u2212$'+money(p.work)+'</b>' : '')
     + (p.sg>0 ? '<br>Savings goal: <b>\u2212$'+money(p.sg)+'</b>' : '')
     + (p.sts<0 ? '<br><span class="warn">\u26A0 This stretch is tight \u2014 check the week radar below.</span>' : '')
-    + '</div>';
+    + '</div>');
 }
 
 // Weekdays (Mon–Fri) from today through payday — the days you'll likely park
@@ -2440,6 +2447,8 @@ document.addEventListener('click', (e)=>{
   }
 
   if (ds.bsnapok!==undefined){ bstate.ui.snapDismissed=true; bsave(); renderBills(); return; }
+  if (ds.bbaksnooze!==undefined){ bstate.ui.backupSnooze = bTodayKey(); bsave(); renderBills(); return; }
+  if (ds.btogsts!==undefined){ bstate.ui.stsOpen = !bstate.ui.stsOpen; bsave(); renderBills(); return; }
   if (ds.bopen!==undefined){
     if (bLpFired){ bLpFired=false; return; } // this tap was the tail of a long-press
     bConfirm=null;
