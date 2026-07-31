@@ -1282,7 +1282,7 @@ document.getElementById('payCard').addEventListener('click', (e)=>{
 // the pay data ('paytracker:v1') — it only reads it for cash flow.
 // ==================================================================
 const BKEY = 'billtracker:v1';
-const BDEF = { templates:{}, payments:{}, settings:{ paydayDow:5, palette:'ocean', payLag:1 }, ui:{ snapDismissed:false } };
+const BDEF = { templates:{}, payments:{}, settings:{ paydayDow:5, palette:'ocean', payLag:1 }, ui:{ snapDismissed:false, lastTab:'week' } };
 let bstate = JSON.parse(JSON.stringify(BDEF));
 try {
   const bsaved = JSON.parse(localStorage.getItem(BKEY));
@@ -1975,6 +1975,9 @@ document.addEventListener('click', (e)=>{
   if (!t) return;
   const ds = t.dataset;
 
+  // Remember which tab you're on, so reopening the app lands you back there
+  if (ds.screen){ bstate.ui.lastTab = ds.screen; bsave(); /* no return — the main listener does the switching */ }
+
   if (t.id==='bStsStrip'){
     const tab = document.querySelector('[data-screen="bills"]');
     if (tab) tab.click();
@@ -2085,6 +2088,11 @@ document.addEventListener('input', (e)=>{
 applyTheme();
 bApplyPalette();
 bUpdateStrip();
+// Reopen on whichever tab was in use when the app was last closed
+if (bstate.ui.lastTab && bstate.ui.lastTab !== 'week'){
+  const lastTabBtn = document.querySelector('.tab[data-screen="'+bstate.ui.lastTab+'"]');
+  if (lastTabBtn) lastTabBtn.click();
+}
 // Auto-open today's card when viewing the current week (skip Sunday if it's toggled off)
 if (toKey(weekEndSat(new Date())) === toKey(weekEnd)){
   const td = new Date().getDay();
