@@ -2524,6 +2524,14 @@ document.addEventListener('click', (e)=>{
 document.addEventListener('change', (e)=>{
   if (e.target.id === 'bParkDate'){ bParkSel = e.target.value || null; renderBills(); }
 });
+// Tap any number field and its contents select themselves — type to replace,
+// no cursor-fighting. Applies everywhere: bills editor, payments, parking, pay rates.
+document.addEventListener('focusin', (e)=>{
+  const el = e.target;
+  if (el && el.tagName==='INPUT' && el.type==='number'){
+    setTimeout(()=>{ try{ el.select(); }catch(_){ } }, 0);
+  }
+});
 // Keep editor state while typing (so tapping a seg button doesn't wipe inputs)
 document.addEventListener('input', (e)=>{
   if (bDraft && e.target.id && e.target.id.startsWith('bf')) bReadDraftInputs();
