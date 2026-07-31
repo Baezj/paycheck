@@ -1945,9 +1945,7 @@ function bRenderPark(){
   el.classList.remove('hidden');
   const selDate = bParkSel || bTodayKey();
   const cur = bstate.parking[selDate];
-  const avg = bParkAvg();
-  const c = Math.round(avg) || 21;
-  const chips = [0, c-3, c-2, c-1, c, c+1, c+2].filter((v,ix,arr)=>v>=0 && arr.indexOf(v)===ix);
+  const chips = [0, 19, 21, 24, 25, 27, 28]; // the actual rates at his lots — $0 for no-park days
   const y = bMonth.getFullYear(), m = bMonth.getMonth();
   const pm = bParkMonth(y, m);
   const worked = bDaysWorkedIn(y, m);
