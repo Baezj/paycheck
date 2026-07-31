@@ -40,6 +40,10 @@
   .weekdate{font-size:17px; font-weight:700;}
   .thisweek{color:var(--orange); font-size:12px; font-family:ui-monospace,Menlo,monospace; margin-left:6px;}
 
+  .weeknoteinput{width:100%; background:var(--card); border:1px dashed var(--line); border-radius:11px; color:var(--text);
+    font-family:inherit; font-size:14px; padding:11px 14px; margin-bottom:14px;}
+  .weeknoteinput::placeholder{color:var(--dim); font-style:italic;}
+  .weeknoteinput:focus{border-style:solid; border-color:var(--orange);}
   .paycard{background:var(--card); border:1px solid var(--line); border-radius:14px; padding:18px 16px; margin-bottom:12px; cursor:pointer;}
   .bd-chevron{color:var(--dim); font-size:12px; margin-left:6px;}
   .payrow{display:flex; justify-content:space-between; align-items:baseline;}
@@ -184,6 +188,9 @@
       </button>
       <button class="navbtn" id="nextWeek" aria-label="Next week">&#8250;</button>
     </div>
+
+    <input class="weeknoteinput" id="weekNoteInput" type="text" maxlength="100"
+      placeholder="📌 Note for this whole week (optional) — e.g. schedule change, job site…">
 
     <div class="paycard" id="payCard">
       <div class="payrow">
@@ -490,6 +497,8 @@ function renderWeek(){
 
   document.getElementById('weekLabel').textContent = 'Sat ' + fmtShort(weekEnd);
   document.getElementById('thisWeekTag').classList.toggle('hidden', toKey(weekEndSat(new Date())) !== toKey(weekEnd));
+  const wni = document.getElementById('weekNoteInput');
+  if (document.activeElement !== wni) wni.value = (week && week.weekNote) || ''; // don't clobber mid-typing
   document.getElementById('netPay').textContent = '$' + money(p.net);
   document.getElementById('totalHrs').textContent = total + ' hrs';
   const otEl = document.getElementById('otHrs');
@@ -646,7 +655,7 @@ function renderHistory(){
     const p = calcPay(v.hours||[], ratesForW(v));
     const useNet = (v.actual && v.actual.net>0) ? v.actual.net : p.net;
     const useGross = (v.actual && v.actual.gross>0) ? v.actual.gross : p.gross;
-    const hasNotes = (v.notes||[]).some(x=>x);
+    const hasNotes = (v.notes||[]).some(x=>x) || !!v.weekNote;
     const verified = !!(v.actual && v.actual.net>0);
     if (fromKey(k).getFullYear()===year){ g+=useGross; n+=useNet; h+=th; t+=(useGross-useNet); count++; }
     rows.push({k, d:fromKey(k), th, p, useNet, hasNotes, verified});
@@ -879,7 +888,9 @@ function shareTimesheet(){
     noteLines[i] = nl;
     bodyH += 92 + nl.length*40;
   }
-  const H = 300 + bodyH + 330;
+  const weekNote = (week && week.weekNote) || '';
+  const weekNoteLines = weekNote ? wrapText(ctx, weekNote, W-PAD*2) : [];
+  const H = 300 + (weekNoteLines.length ? weekNoteLines.length*38 + 24 : 0) + bodyH + 330;
   cv.width = W; cv.height = H;
 
   // Background
@@ -903,6 +914,14 @@ function shareTimesheet(){
   ctx.strokeStyle = '#D9DEE5'; ctx.lineWidth = 2;
   ctx.beginPath(); ctx.moveTo(PAD, y); ctx.lineTo(W-PAD, y); ctx.stroke();
   y += 24;
+
+  // Week note — applies to the whole week, shown before the days
+  if (weekNoteLines.length){
+    ctx.fillStyle = '#E86A00';
+    ctx.font = 'italic 600 30px -apple-system, Helvetica, Arial';
+    for (const ln of weekNoteLines){ y += 38; ctx.fillText('\u2022 '+ln, PAD, y); }
+    y += 24;
+  }
 
   // Day rows — chronological (Sun first) for the boss's copy
   for (let i=0;i<7;i++){
@@ -1091,6 +1110,11 @@ document.addEventListener('input', (e)=>{
     save(); updateQuickCalc(); return;
   }
   if (el.dataset && el.dataset.note!==undefined){ setNote(+el.dataset.note, el.value); return; }
+  if (el.id === 'weekNoteInput'){
+    const w = touchWeek();
+    w.weekNote = el.value;
+    save(); return;
+  }
 });
 document.addEventListener('change', (e)=>{
   const el = e.target;
