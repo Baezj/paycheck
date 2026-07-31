@@ -1,0 +1,2097 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>Pay &amp; Bills</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Pay &amp; Bills">
+<meta name="theme-color" content="#14181D">
+<link rel="apple-touch-icon" href="icon.png">
+<style>
+  :root{
+    --bg:#14181D; --card:#1D232B; --up:#242C36; --line:#313A46;
+    --text:#EDF0F3; --dim:#8B95A3; --orange:#FF7A1A; --orange-text:#14181D;
+    --green:#3DDC84; --red:#FF5C5C;
+  }
+  [data-theme="light"]{
+    --bg:#F4F5F7; --card:#FFFFFF; --up:#ECEEF2; --line:#D9DEE5;
+    --text:#1A1F26; --dim:#68717F; --orange:#E86A00; --orange-text:#FFFFFF;
+    --green:#118A4E; --red:#C93B3B;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  body{
+    margin:0; background:var(--bg); color:var(--text);
+    font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+    padding-bottom:calc(76px + env(safe-area-inset-bottom));
+    transition:background .2s, color .2s;
+  }
+  .wrap{max-width:480px; margin:0 auto; padding:calc(16px + env(safe-area-inset-top)) 14px 0;}
+  button{font-family:inherit; cursor:pointer; border:none; color:var(--text);}
+  button:focus-visible, input:focus-visible{outline:2px solid var(--orange); outline-offset:2px;}
+  .mono{font-family:ui-monospace,Menlo,monospace;}
+
+  .weeknav{display:flex; align-items:center; justify-content:space-between; margin-bottom:14px;}
+  .navbtn{width:44px; height:44px; border-radius:10px; background:var(--up); border:1px solid var(--line); font-size:20px;}
+  .weeklabel{text-align:center; background:none; border:none; padding:0; color:inherit; font-family:inherit;}
+  .eyebrow{font-family:ui-monospace,Menlo,monospace; font-size:11px; letter-spacing:.14em; color:var(--dim); text-transform:uppercase;}
+  .weekdate{font-size:17px; font-weight:700;}
+  .thisweek{color:var(--orange); font-size:12px; font-family:ui-monospace,Menlo,monospace; margin-left:6px;}
+
+  .weeknoteinput{width:100%; background:var(--card); border:1px dashed var(--line); border-radius:11px; color:var(--text);
+    font-family:inherit; font-size:14px; padding:11px 14px; margin-bottom:14px;}
+  .weeknoteinput::placeholder{color:var(--dim); font-style:italic;}
+  .weeknoteinput:focus{border-style:solid; border-color:var(--orange);}
+  .paycard{background:var(--card); border:1px solid var(--line); border-radius:14px; padding:18px 16px; margin-bottom:12px; cursor:pointer;}
+  .bd-chevron{color:var(--dim); font-size:12px; margin-left:6px;}
+  .payrow{display:flex; justify-content:space-between; align-items:baseline;}
+  .net{font-family:ui-monospace,Menlo,monospace; font-size:40px; font-weight:700; color:var(--green); line-height:1; font-variant-numeric:tabular-nums;}
+  .hrsinfo{text-align:right; font-family:ui-monospace,Menlo,monospace; font-size:13px; color:var(--dim);}
+  .otflag{color:var(--orange);}
+  .cardactions{display:flex; gap:16px; margin-top:14px;}
+  .linkbtn{background:none; color:var(--orange); font-family:ui-monospace,Menlo,monospace; font-size:12px; padding:0;}
+  .verifybtn{background:transparent; color:var(--orange); border:1.5px solid var(--orange); border-radius:9px;
+    font-family:ui-monospace,Menlo,monospace; font-size:13px; font-weight:600; padding:9px 16px;}
+  .verifybtn.v{color:var(--green); border-color:var(--green);}
+  .breakdown{margin-top:12px; border-top:1px solid var(--line); padding-top:12px; font-family:ui-monospace,Menlo,monospace; font-size:13px;}
+  .bd-line{display:flex; justify-content:space-between; padding:4px 0; color:var(--dim);}
+  .bd-line.strong{color:var(--text); font-weight:700; border-top:1px solid var(--line); margin-top:4px; padding-top:8px;}
+  .bd-line.green{color:var(--green); font-weight:700; border-top:1px solid var(--line); margin-top:4px; padding-top:8px;}
+  .bd-line.ot{color:var(--orange);}
+  .bd-line span:last-child{font-variant-numeric:tabular-nums;}
+
+  .compare{margin-top:12px; border-top:1px solid var(--line); padding-top:12px;}
+  .compform{display:flex; flex-direction:column; gap:8px;}
+  .comprow{display:flex; align-items:center; justify-content:space-between; gap:10px;}
+  .comprow label{font-size:13px; color:var(--dim);}
+  .compinput{width:130px; font-family:ui-monospace,Menlo,monospace; font-size:15px; font-weight:700; text-align:right;
+    background:var(--up); border:1px solid var(--line); border-radius:8px; color:var(--text); padding:9px 10px;}
+  .compbtns{display:flex; gap:8px; margin-top:2px;}
+  .skiprow{display:flex; align-items:center; gap:9px; font-size:13px; color:var(--dim); padding:2px 0;}
+  .skiprow input{width:19px; height:19px; accent-color:var(--orange);}
+  .smallbtn{flex:1; font-family:ui-monospace,Menlo,monospace; font-size:13px; font-weight:600; padding:11px 0; border-radius:9px;
+    background:var(--up); border:1px solid var(--line);}
+  .smallbtn.primary{background:var(--orange); color:var(--orange-text); border-color:var(--orange);}
+  .smallbtn.danger{color:var(--red);}
+  .compresult{font-family:ui-monospace,Menlo,monospace; font-size:13px; line-height:1.6;}
+  .good{color:var(--green);} .warn{color:var(--red);} .dimtext{color:var(--dim);}
+
+  .repeatbar{width:100%; font-family:ui-monospace,Menlo,monospace; font-size:13px; font-weight:600; padding:13px 0;
+    border-radius:12px; background:var(--card); border:1px dashed var(--orange); color:var(--orange); margin-bottom:12px;}
+  .sharebar{width:100%; font-family:ui-monospace,Menlo,monospace; font-size:13px; font-weight:600; padding:13px 0;
+    border-radius:12px; background:var(--card); border:1px solid var(--line); color:var(--text); margin-top:4px;}
+
+  .day{background:var(--card); border:1px solid var(--line); border-radius:12px; margin-bottom:8px; overflow:hidden; transition:border-color .15s;}
+  .day.off{opacity:.4;}
+  .day.sunask{border-color:var(--orange); opacity:1;}
+  .day.confirm{border-color:var(--red);}
+  .confirmbody{display:flex; align-items:center; gap:10px; padding:0 12px 14px;}
+  .confirmtext{flex:1; font-size:14px; color:var(--red);}
+  .confirmbtn{font-family:ui-monospace,Menlo,monospace; font-size:14px; font-weight:700; padding:11px 18px; border-radius:9px;}
+  .confirmbtn.del{background:var(--red); color:#fff;}
+  .confirmbtn.keep{background:var(--up); border:1px solid var(--line); color:var(--text);}
+  .day.open{background:var(--up); border-color:var(--orange);}
+  .dayhead{width:100%; display:flex; align-items:center; justify-content:space-between; padding:14px 16px; background:none; font-size:15px;
+    -webkit-user-select:none; user-select:none; -webkit-touch-callout:none;}
+  .dayname{font-family:ui-monospace,Menlo,monospace; font-size:12px; color:var(--dim); width:76px; text-align:left; display:inline-block;}
+  .dayname.today{color:var(--orange);}
+  .daydate{color:var(--text); font-weight:700; font-size:13px;}
+  .dayname.today .daydate{color:var(--orange);}
+  .todaytag{font-size:10px; font-family:ui-monospace,Menlo,monospace; color:var(--orange); margin-left:8px;}
+  .dayhrs{font-family:ui-monospace,Menlo,monospace; font-size:17px; font-weight:700;}
+  .dayhrs.empty{color:var(--dim);}
+  .dayot{display:block; font-family:ui-monospace,Menlo,monospace; font-size:11px; font-weight:600; color:var(--orange); text-align:right; margin-top:2px;}
+  .daynote-preview{display:block; font-size:12px; color:var(--dim); padding:0 16px 12px; margin-top:-6px; text-align:left; font-style:italic;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .daybody{padding:0 12px 14px;}
+  .chiprow{display:flex; gap:8px; margin-bottom:8px;}
+  .chip{flex:1; font-family:ui-monospace,Menlo,monospace; font-size:16px; font-weight:700; padding:12px 0; border-radius:10px; border:1px solid var(--line); background:var(--up); color:var(--text);}
+  [data-theme="light"] .chip{background:var(--card);}
+  .chip.on{background:var(--orange); color:var(--orange-text); border-color:var(--orange);}
+  .chip.next{background:var(--orange); color:var(--orange-text); border-color:var(--orange);}
+  .chip.clear{color:var(--red);}
+  .noteinput{width:100%; background:var(--up); border:1px solid var(--line); border-radius:10px; color:var(--text);
+    font-family:inherit; font-size:14px; padding:11px 12px;}
+  [data-theme="light"] .noteinput{background:var(--card);}
+  .noteinput::placeholder{color:var(--dim);}
+
+  h2{font-size:20px; font-weight:800; margin:6px 0 14px;}
+  .panel{background:var(--card); border:1px solid var(--line); border-radius:14px; padding:16px; margin-bottom:16px;}
+  .grid2{display:grid; grid-template-columns:1fr 1fr; gap:12px; font-family:ui-monospace,Menlo,monospace; margin-top:10px;}
+  .glabel{font-size:11px; color:var(--dim);}
+  .gval{font-size:18px; font-weight:700; font-variant-numeric:tabular-nums;}
+  .projnote{font-size:12px; color:var(--dim); margin-top:10px; line-height:1.4;}
+  .histrow{width:100%; background:var(--card); border:1px solid var(--line); border-radius:12px; margin-bottom:8px; padding:14px 16px; display:flex; justify-content:space-between; align-items:center; text-align:left;}
+  .histweek{font-size:15px; font-weight:600;}
+  .histsub{font-family:ui-monospace,Menlo,monospace; font-size:12px; color:var(--dim);}
+  .histnet{font-family:ui-monospace,Menlo,monospace; font-size:17px; font-weight:700; color:var(--green); font-variant-numeric:tabular-nums;}
+  .verified{color:var(--green);}
+  .empty-msg{font-family:ui-monospace,Menlo,monospace; font-size:13px; color:var(--dim);}
+
+  .savingsline{margin-top:10px; font-family:ui-monospace,Menlo,monospace; font-size:13px; color:var(--dim);}
+  .savingsline b{color:var(--text);}
+
+  .chart{display:flex; align-items:flex-end; gap:5px; height:130px; margin-top:14px;}
+  .bar{flex:1; display:flex; flex-direction:column; align-items:center; justify-content:flex-end; height:100%; background:none; padding:0;}
+  .barfill{width:100%; border-radius:4px 4px 0 0; background:var(--dim); min-height:3px; transition:height .2s;}
+  .barfill.v{background:var(--green);}
+  .barlabel{font-family:ui-monospace,Menlo,monospace; font-size:9px; color:var(--dim); margin-top:5px; white-space:nowrap;}
+  .chartcap{display:flex; justify-content:space-between; font-family:ui-monospace,Menlo,monospace; font-size:11px; color:var(--dim); margin-top:8px;}
+  .chartval{font-family:ui-monospace,Menlo,monospace; font-size:9px; color:var(--dim); margin-bottom:3px; font-variant-numeric:tabular-nums;}
+
+  .setrow{background:var(--card); border:1px solid var(--line); border-radius:12px; padding:12px 16px; margin-bottom:8px; display:flex; justify-content:space-between; align-items:center; gap:10px;}
+  .setrow label{font-size:14px;}
+  .setrow input{width:96px; font-family:ui-monospace,Menlo,monospace; font-size:15px; font-weight:700; text-align:right; background:var(--up); border:1px solid var(--line); border-radius:8px; color:var(--text); padding:8px 10px;}
+  input[type="time"]{color-scheme:dark; width:130px;}
+  [data-theme="light"] input[type="time"]{color-scheme:light;}
+  .seg{display:flex; gap:6px;}
+  .segbtn{font-family:ui-monospace,Menlo,monospace; font-size:13px; font-weight:600; padding:9px 14px; border-radius:8px; background:var(--up); border:1px solid var(--line); color:var(--dim);}
+  .segbtn.on{background:var(--orange); color:var(--orange-text); border-color:var(--orange);}
+  .footnote{font-size:12px; color:var(--dim); margin-top:12px; line-height:1.5;}
+  .setsection{font-size:13px; color:var(--dim); margin:16px 0 10px;}
+
+  .tabbar{position:fixed; bottom:0; left:0; right:0; background:var(--bg); border-top:1px solid var(--line); padding:10px 14px calc(10px + env(safe-area-inset-bottom)); display:flex; justify-content:center; transition:background .2s;}
+  .tabs{display:flex; gap:6px; width:100%; max-width:480px;}
+  .tab{flex:1; font-family:ui-monospace,Menlo,monospace; font-size:13px; font-weight:600; padding:12px 0; border-radius:8px; background:transparent; color:var(--dim); transition:background .15s,color .15s;}
+  .tab.on{background:var(--orange); color:var(--orange-text);}
+  .hidden{display:none;}
+
+  /* ---- Bills tab ---- */
+  .b-sts{font-family:ui-monospace,Menlo,monospace; font-size:34px; font-weight:700; line-height:1; font-variant-numeric:tabular-nums; margin-top:6px;}
+  .b-sts.good{color:var(--green);} .b-sts.bad{color:var(--red);}
+  .b-stsline{font-family:ui-monospace,Menlo,monospace; font-size:12px; color:var(--dim); margin-top:8px; line-height:1.6;}
+  .b-stsline b{color:var(--text);}
+  .b-grouplabel{font-family:ui-monospace,Menlo,monospace; font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:var(--dim); margin:14px 0 8px;}
+  .b-grouplabel.over{color:var(--red);}
+  .day.b-over{border-color:var(--red);}
+  .day.b-paidrow{opacity:.55;}
+  .day.b-paidrow.open{opacity:1;}
+  .b-name{font-size:15px; font-weight:600; text-align:left;}
+  .b-sub{display:block; font-family:ui-monospace,Menlo,monospace; font-size:11px; color:var(--dim); text-align:left; margin-top:3px;}
+  .b-sub .warn{color:var(--red);} .b-sub .good{color:var(--green);}
+  .b-amt{font-family:ui-monospace,Menlo,monospace; font-size:17px; font-weight:700; font-variant-numeric:tabular-nums;}
+  .b-amt.paid{color:var(--green);}
+  .b-duetag{display:block; font-family:ui-monospace,Menlo,monospace; font-size:11px; color:var(--dim); text-align:right; margin-top:2px;}
+  .b-duetag.over{color:var(--red); font-weight:600;}
+  .b-badge{font-family:ui-monospace,Menlo,monospace; font-size:10px; border:1px solid var(--line); border-radius:5px; padding:1px 5px; color:var(--dim); margin-left:6px; vertical-align:2px;}
+  .b-prog{height:8px; background:var(--up); border:1px solid var(--line); border-radius:5px; overflow:hidden; margin:8px 0 4px;}
+  .b-progfill{height:100%; background:var(--green); border-radius:4px;}
+  .b-creep{color:var(--orange); font-weight:600;}
+  .b-payform{margin-top:10px; border-top:1px solid var(--line); padding-top:10px;}
+  .b-editor{background:var(--card); border:1px solid var(--orange); border-radius:14px; padding:14px; margin-bottom:12px;}
+  .b-tmplrow{display:flex; justify-content:space-between; align-items:center; background:var(--card); border:1px solid var(--line); border-radius:12px; padding:12px 14px; margin-bottom:8px;}
+  .b-tmplinfo{font-size:14px; font-weight:600;}
+  .b-tmplsub{font-family:ui-monospace,Menlo,monospace; font-size:11px; color:var(--dim); margin-top:2px;}
+  .b-seg7{display:flex; gap:4px;}
+  .b-seg7 .segbtn{padding:9px 0; flex:1; font-size:12px;}
+  .b-swatches{display:flex; gap:10px;}
+  .b-swatch{width:36px; height:36px; border-radius:50%; border:3px solid transparent; padding:0;}
+  .b-swatch.on{border-color:var(--text);}
+  input[type="date"]{color-scheme:dark;}
+  [data-theme="light"] input[type="date"]{color-scheme:light;}
+  .b-quickrow{display:flex; flex-wrap:wrap; gap:6px; margin:10px 0;}
+  .b-quick{font-family:ui-monospace,Menlo,monospace; font-size:12px; font-weight:600; padding:9px 12px; border-radius:16px; background:var(--card); border:1px dashed var(--line); color:var(--text);}
+  .b-paidcollapse{width:100%; background:var(--card); border:1px solid var(--line); border-radius:12px; padding:13px 16px; font-family:ui-monospace,Menlo,monospace; font-size:13px; color:var(--dim); text-align:left; display:flex; justify-content:space-between;}
+  .b-iconrow{display:flex; flex-wrap:wrap; gap:6px; margin:2px 0 10px;}
+  .b-iconbtn{width:40px; height:40px; border-radius:9px; background:var(--up); border:1px solid var(--line); font-size:19px; padding:0;}
+  .b-iconbtn.on{border-color:var(--orange); background:var(--orange); }
+  .b-iconbtn.auto{width:auto; padding:0 10px; font-family:ui-monospace,Menlo,monospace; font-size:12px; font-weight:600; color:var(--dim);}
+  .b-iconbtn.auto.on{color:var(--orange-text);}
+
+  /* ---- Motion ---- */
+  @keyframes slideDown{ from{opacity:0; transform:translateY(-8px);} to{opacity:1; transform:translateY(0);} }
+  @keyframes fadeIn{ from{opacity:0;} to{opacity:1;} }
+  @keyframes fromRight{ from{opacity:0; transform:translateX(16px);} to{opacity:1; transform:translateX(0);} }
+  @keyframes fromLeft{ from{opacity:0; transform:translateX(-16px);} to{opacity:1; transform:translateX(0);} }
+  #screen-week.anim-next{ animation:fromRight .2s ease; }
+  #screen-week.anim-prev{ animation:fromLeft .2s ease; }
+  .daybody{ animation:slideDown .22s ease; }
+  .breakdown:not(.hidden), .compare:not(.hidden){ animation:slideDown .22s ease; }
+  .daynote-preview{ animation:fadeIn .2s ease; }
+  #screen-week, #screen-history, #screen-settings{ animation:fadeIn .18s ease; }
+  .chip:active, .navbtn:active, .smallbtn:active, .tab:active, .repeatbar:active, .sharebar:active, .histrow:active{
+    transform:scale(.965); transition:transform .08s ease;
+  }
+  .dayhead:active{ opacity:.7; transition:opacity .08s ease; }
+  @media (prefers-reduced-motion: reduce){ *{transition:none !important; animation:none !important;} }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <!-- WEEK SCREEN -->
+  <section id="screen-week">
+    <div class="weeknav">
+      <button class="navbtn" id="prevWeek" aria-label="Previous week">&#8249;</button>
+      <button class="weeklabel" id="weekHome" aria-label="Jump to current week">
+        <div class="eyebrow">Week ending</div>
+        <div class="weekdate"><span id="weekLabel"></span><span id="thisWeekTag" class="thisweek hidden">&#9679; this week</span></div>
+      </button>
+      <button class="navbtn" id="nextWeek" aria-label="Next week">&#8250;</button>
+    </div>
+
+    <input class="weeknoteinput" id="weekNoteInput" type="text" maxlength="100"
+      placeholder="📌 Note for this whole week (optional) — e.g. schedule change, job site…">
+
+    <div class="paycard" id="payCard">
+      <div class="payrow">
+        <div>
+          <div class="eyebrow" style="margin-bottom:4px">Estimated take-home<span class="bd-chevron" id="bdChevron">&#9662;</span></div>
+          <div class="net" id="netPay">$0.00</div>
+        </div>
+        <div class="hrsinfo">
+          <div id="totalHrs">0 hrs</div>
+          <div class="otflag hidden" id="otHrs"></div>
+        </div>
+      </div>
+      <div class="savingsline hidden" id="savingsLine"></div>
+      <div class="cardactions">
+        <button class="verifybtn" id="toggleComp">&#10003; Actual check</button>
+      </div>
+      <div class="breakdown hidden" id="breakdown"></div>
+      <div class="compare hidden" id="compare"></div>
+    </div>
+
+    <button class="sharebar hidden" id="bStsStrip" style="margin:0 0 12px"></button>
+
+    <button class="repeatbar hidden" id="repeatBtn">&#8635; Repeat last week's hours</button>
+
+    <div id="dayList"></div>
+    <button class="sharebar hidden" id="shareBtn">&#128228; Share timesheet (hours only, no pay)</button>
+  </section>
+
+  <!-- HISTORY SCREEN -->
+  <section id="screen-history" class="hidden">
+    <h2>History</h2>
+    <div class="panel">
+      <div class="eyebrow" id="ytdTitle">Totals</div>
+      <div class="grid2" id="ytdGrid"></div>
+    </div>
+    <div class="panel">
+      <div class="eyebrow">Yearly projection</div>
+      <div class="grid2" id="projGrid"></div>
+      <div class="projnote" id="projNote"></div>
+    </div>
+    <div class="panel hidden" id="chartPanel">
+      <div class="eyebrow">Last checks</div>
+      <div class="chart" id="chart"></div>
+      <div class="chartcap"><span id="chartFrom"></span><span id="chartTo"></span></div>
+    </div>
+    <div id="histList"></div>
+  </section>
+
+  <!-- SETTINGS SCREEN -->
+  <section id="screen-settings" class="hidden">
+    <h2>Settings</h2>
+
+    <div class="panel" style="margin-bottom:16px">
+      <div class="eyebrow" style="margin-bottom:10px">Quick pay calculator</div>
+      <div class="comprow" style="margin-bottom:8px"><label for="qcReg">Regular hours</label>
+        <input class="compinput" id="qcReg" type="number" inputmode="decimal" step="0.5" min="0" placeholder="40" data-qc="1"></div>
+      <div class="comprow" style="margin-bottom:8px"><label for="qcOt">Overtime hours (incl. Saturday)</label>
+        <input class="compinput" id="qcOt" type="number" inputmode="decimal" step="0.5" min="0" placeholder="0" data-qc="1"></div>
+      <div class="comprow" style="margin-bottom:10px"><label for="qcDt">Sunday hours (2x)</label>
+        <input class="compinput" id="qcDt" type="number" inputmode="decimal" step="0.5" min="0" placeholder="0" data-qc="1"></div>
+      <div class="compresult" id="qcResult" style="border-top:1px solid var(--line); padding-top:10px"></div>
+    </div>
+
+    <div class="panel" style="margin-bottom:16px">
+      <div class="eyebrow" style="margin-bottom:10px">Shift calculator (start / end + breaks)</div>
+      <div class="comprow" style="margin-bottom:8px"><label for="shStart">Started work</label>
+        <input class="compinput" id="shStart" type="time" value="07:00" data-sh="1"></div>
+      <div class="comprow" style="margin-bottom:10px"><label for="shEnd">Finished work</label>
+        <input class="compinput" id="shEnd" type="time" value="15:00" data-sh="1"></div>
+      <label class="skiprow"><input type="checkbox" id="shCoffee" data-sh="1"> Worked through coffee break (+0.5 OT)</label>
+      <label class="skiprow" style="margin-bottom:8px"><input type="checkbox" id="shLunch" data-sh="1"> Worked through lunch (+1 OT)</label>
+      <div class="compresult" id="shResult" style="border-top:1px solid var(--line); padding-top:10px"></div>
+    </div>
+
+    <div class="setrow">
+      <label>Appearance</label>
+      <div class="seg" id="themeSeg">
+        <button class="segbtn" data-theme-pick="auto">Auto</button>
+        <button class="segbtn" data-theme-pick="dark">Dark</button>
+        <button class="segbtn" data-theme-pick="light">Light</button>
+      </div>
+    </div>
+
+    <div class="setrow">
+      <label>Sundays</label>
+      <div class="seg" id="sunSeg">
+        <button class="segbtn" data-sun-pick="on">On</button>
+        <button class="segbtn" data-sun-pick="off">Off</button>
+      </div>
+    </div>
+
+    <p class="setsection">Pay rates — update these when you get a raise. Past weeks keep the rates they were logged at, so your history stays accurate.</p>
+    <div id="setList"></div>
+
+    <p class="setsection">Accuracy</p>
+    <div class="panel" style="margin-bottom:8px">
+      <div class="compresult" id="calibInfo"></div>
+    </div>
+
+    <p class="setsection">Backup — your data lives on this phone only. Export a backup now and then; keep it in iCloud or Files.</p>
+    <div class="compbtns" style="margin-bottom:4px">
+      <button class="smallbtn" id="exportBtn">&#8681; Export backup</button>
+      <button class="smallbtn" id="importBtn">&#8679; Restore backup</button>
+    </div>
+    <input type="file" id="importFile" accept=".json,application/json" class="hidden">
+    <div class="compresult" id="backupMsg" style="margin-top:6px"></div>
+
+    <p class="footnote">Tax formulas (federal, Social Security, Medicare, MA state, MA PFL) are built in and calibrated to your 2026 paystubs. Estimates only, not tax advice. &mdash; <b>Pay &amp; Bills v2.0</b></p>
+  </section>
+</div>
+
+  <!-- BILLS SCREEN -->
+  <section id="screen-bills" class="hidden">
+    <div class="weeknav">
+      <button class="navbtn" id="bPrevMonth" aria-label="Previous month">&#8249;</button>
+      <button class="weeklabel" id="bMonthHome" aria-label="Jump to current month">
+        <div class="eyebrow">Bills for</div>
+        <div class="weekdate"><span id="bMonthLabel"></span><span id="bThisMonthTag" class="thisweek hidden">&#9679; this month</span></div>
+      </button>
+      <button class="navbtn" id="bNextMonth" aria-label="Next month">&#8250;</button>
+    </div>
+
+    <div id="bSnapBanner"></div>
+    <div class="panel" id="bStsPanel"></div>
+    <div id="bList"></div>
+    <button class="repeatbar" id="bAddBill">+ Add a bill</button>
+    <div class="panel hidden" id="bSummary"></div>
+    <div class="panel hidden" id="bCrunch"></div>
+    <button class="sharebar" id="bManageBtn">&#9881; Manage bills &amp; payday</button>
+    <div id="bManage" class="hidden"></div>
+    <p class="footnote">Bills data lives on this phone only, under its own storage key &mdash; it never touches your pay data. The backup in Settings now covers both. <span class="dimtext">Pay &amp; Bills v2.0</span></p>
+  </section>
+
+<nav class="tabbar" role="tablist">
+  <div class="tabs">
+    <button class="tab on" data-screen="week" role="tab" aria-selected="true">Pay</button>
+    <button class="tab" data-screen="history" role="tab" aria-selected="false">History</button>
+    <button class="tab" data-screen="settings" role="tab" aria-selected="false">Settings</button>
+    <button class="tab" data-screen="bills" role="tab" aria-selected="false">Bills</button>
+  </div>
+</nav>
+
+<script>
+// ============ STATE & STORAGE ============
+const KEY = 'paytracker:v1';
+const DEFAULTS = { baseRate:49.15, otRate:73.725, sundayRate:98.30, otThreshold:40, dailyOtThreshold:8, duesPerHr:1.75, lplPerHr:0.07, savingsGoal:0, workSundays:false };
+let state = { weeks:{}, settings:{...DEFAULTS}, theme:'auto', seeded:false };
+try {
+  const saved = JSON.parse(localStorage.getItem(KEY));
+  if (saved && typeof saved === 'object') {
+    state.weeks = saved.weeks || {};
+    state.settings = { ...DEFAULTS, ...(saved.settings||{}) };
+    state.theme = saved.theme || 'auto';
+    state.seeded = !!saved.seeded;
+  }
+} catch(e){}
+function save(){ try{ localStorage.setItem(KEY, JSON.stringify(state)); }catch(e){} }
+
+// ---- One-time preload of the three real stub weeks (verified checks) ----
+if (!state.seeded){
+  const seed = [
+    // [weekEndKey, hours Sun..Sat, actualGross, actualNet]
+    ['2026-06-27', [0,8,8,10,8,8,0],    2113.46, 1592.00],
+    ['2026-07-04', [0,9,9,9,9,9.5,0],   2371.49, 1778.00],
+    ['2026-07-11', [0,9,9,9.5,9.5,9.5,0], 2445.22, 1832.00],
+  ];
+  for (const [k, hrs, g, n] of seed){
+    if (!state.weeks[k]){
+      state.weeks[k] = {
+        hours: hrs,
+        notes: ['','From stub \u2014 daily split estimated','','','','',''],
+        rates: { ...DEFAULTS },
+        actual: { net:n, gross:g }
+      };
+    }
+  }
+  state.seeded = true;
+  save();
+}
+
+// ============ THEME ============
+const mq = window.matchMedia('(prefers-color-scheme: light)');
+function applyTheme(){
+  const mode = state.theme==='auto' ? (mq.matches?'light':'dark') : state.theme;
+  document.documentElement.setAttribute('data-theme', mode);
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.setAttribute('content', mode==='light' ? '#F4F5F7' : '#14181D');
+  document.querySelectorAll('[data-theme-pick]').forEach(b=>
+    b.classList.toggle('on', b.dataset.themePick===state.theme));
+}
+mq.addEventListener('change', ()=>{ if(state.theme==='auto') applyTheme(); });
+
+// ============ PAY MATH (calibrated to real stubs) ============
+function calcFWH(gross){
+  const taxable = Math.max(0, gross - 619.23);
+  const brackets = [[476.92,.10],[1938.46,.12],[4059.62,.22],[7750,.24],[Infinity,.32]];
+  let tax=0, prev=0;
+  for (const [cap,rate] of brackets){
+    if (taxable > prev){ tax += (Math.min(taxable,cap)-prev)*rate; prev = cap; } else break;
+  }
+  return tax;
+}
+// Split hours into regular / overtime / double-time.
+// Union rules:
+//  - Mon-Fri: over 8 hrs in a day = OT; over 40 straight-time hrs in the week = OT (no double counting)
+//  - Saturday: ALL hours at OT rate
+//  - Sunday: ALL hours at double time
+// hoursArr indices: 0=Sun, 1=Mon ... 6=Sat
+function splitHours(arr, s){
+  const dailyCap = s.dailyOtThreshold || 8;
+  let straight = 0, ot = 0, dt = 0;
+  for (let i=0;i<7;i++){
+    const h = arr[i]||0;
+    if (i===0){ dt += h; }                    // Sunday = double time
+    else if (i===6){ ot += h; }               // Saturday = OT rate
+    else {                                    // weekdays
+      straight += Math.min(h, dailyCap);
+      ot += Math.max(0, h - dailyCap);
+    }
+  }
+  const weeklyExtra = Math.max(0, straight - s.otThreshold);
+  return { reg: straight - weeklyExtra, ot: ot + weeklyExtra, dt };
+}
+// Raw calc (no calibration) — used for storing clean comparisons
+function calcPayRaw(hoursArr, s){
+  const { reg, ot, dt } = splitHours(hoursArr, s);
+  const hrs = reg + ot + dt;
+  const regPay = reg*s.baseRate, otPay = ot*s.otRate, dtPay = dt*(s.sundayRate || s.baseRate*2);
+  const gross = regPay + otPay + dtPay;
+  const fwh = calcFWH(gross), socSec = gross*.062, medicare = gross*.0145;
+  const maSwh = Math.max(0, gross*.05 - 1.92), mapfl = gross*.0046;
+  const dues = hrs*s.duesPerHr, lpl = hrs*s.lplPerHr;
+  const net = gross - fwh - socSec - medicare - maSwh - mapfl - dues - lpl;
+  return {reg, ot, dt, regPay, otPay, dtPay, gross, fwh, socSec, medicare, maSwh, mapfl, dues, lpl, net, deducted: gross-net};
+}
+// Auto-calibration offset: avg (raw est net − actual net) across verified weeks where gross matched
+function calibration(){
+  let sum=0, count=0;
+  for (const v of Object.values(state.weeks)){
+    if (!v.actual || !(v.actual.net>0)) continue;
+    if (v.actual.skip) continue; // marked unusual (makeup pay, bonus) — don't learn from it
+    const th = (v.hours||[]).reduce((a,b)=>a+b,0);
+    if (th<=0) continue;
+    const raw = calcPayRaw(v.hours||[], ratesForW(v));
+    // If a gross was entered, only trust the comparison when it matches our computed gross
+    if (v.actual.gross>0 && Math.abs(v.actual.gross - raw.gross) > 0.5) continue;
+    // No gross entered + suspiciously large gap = likely an hours mismatch — don't learn from it
+    if (!(v.actual.gross>0) && Math.abs(raw.net - v.actual.net) > 10) continue;
+    sum += raw.net - v.actual.net; count++;
+  }
+  const offset = count>0 ? sum/count : 0;
+  // sanity clamp — never let a bad entry swing estimates wildly
+  return { offset: Math.max(-25, Math.min(25, offset)), count };
+}
+// Calibrated calc — what we display for estimates
+function calcPay(hoursArr, s){
+  const p = calcPayRaw(hoursArr, s);
+  if (p.gross <= 0) return p; // nothing worked = nothing to calibrate
+  const c = calibration();
+  p.fwh += c.offset;
+  p.net -= c.offset;
+  p.deducted += c.offset;
+  return p;
+}
+function ratesForW(week){ return (week && week.rates) ? { ...DEFAULTS, ...week.rates } : state.settings; }
+
+// ============ DATES (week ends Saturday) ============
+function weekEndSat(d){
+  const x = new Date(d); x.setDate(x.getDate() + (6 - x.getDay())); x.setHours(0,0,0,0); return x;
+}
+function toKey(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+function fromKey(k){ const [y,m,dd]=k.split('-').map(Number); return new Date(y,m-1,dd); }
+function fmtShort(d){ return (d.getMonth()+1)+'/'+d.getDate(); }
+function money(n){ return n.toLocaleString('en-US',{minimumFractionDigits:2, maximumFractionDigits:2}); }
+const DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+
+let weekEnd = weekEndSat(new Date());
+let openDay = null;
+let confirmDay = null; // day pending delete confirmation (via long-press)
+let sunPrompt = false; // greyed Sunday tapped — asking whether to enable Sundays
+let lpFired = false;   // suppresses the tap that follows a long-press
+let showBd = false;
+let showComp = false;
+
+function getWeek(){ return state.weeks[toKey(weekEnd)] || null; }
+function getHours(){ const w=getWeek(); return (w&&w.hours)||[0,0,0,0,0,0,0]; }
+function getNotes(){ const w=getWeek(); return (w&&w.notes)||['','','','','','','']; }
+function touchWeek(){
+  const k = toKey(weekEnd);
+  const w = state.weeks[k] || { hours:[0,0,0,0,0,0,0], notes:['','','','','','',''] };
+  if (!w.notes) w.notes=['','','','','','',''];
+  if (!w.rates) w.rates = { ...state.settings };
+  state.weeks[k] = w;
+  return w;
+}
+function setDay(i, v){
+  v = Math.max(0, Math.min(24, Math.round(v*4)/4));
+  const w = touchWeek(); w.hours[i] = v;
+  save(); renderWeek();
+}
+function setNote(i, text){ const w = touchWeek(); w.notes[i] = text; save(); }
+
+// Per-day premium label: how many of this day's hours are OT / double time
+// (weekdays: over the daily cap; Saturday: all OT; Sunday: all double time)
+function dayPremium(i, h, s){
+  if (h<=0) return '';
+  if (i===0) return h+' @ 2x';
+  if (i===6) return h+' @ OT';
+  const extra = h - (s.dailyOtThreshold || 8);
+  return extra>0 ? '+'+extra+' OT' : '';
+}
+
+// Directional slide when changing weeks (dir: 1 = forward, -1 = back)
+function weekSlide(dir){
+  const el = document.getElementById('screen-week');
+  el.classList.remove('anim-next','anim-prev');
+  void el.offsetWidth; // restart the animation
+  el.classList.add(dir > 0 ? 'anim-next' : 'anim-prev');
+}
+
+// ============ RENDER: WEEK ============
+function renderWeek(){
+  const week = getWeek();
+  const hours = getHours();
+  const notes = getNotes();
+  const total = hours.reduce((a,b)=>a+b,0);
+  const s = ratesForW(week);
+  const p = calcPay(hours, s);
+
+  document.getElementById('weekLabel').textContent = 'Sat ' + fmtShort(weekEnd);
+  document.getElementById('thisWeekTag').classList.toggle('hidden', toKey(weekEndSat(new Date())) !== toKey(weekEnd));
+  const wni = document.getElementById('weekNoteInput');
+  if (document.activeElement !== wni) wni.value = (week && week.weekNote) || ''; // don't clobber mid-typing
+  document.getElementById('netPay').textContent = '$' + money(p.net);
+  document.getElementById('totalHrs').textContent = total + ' hrs';
+  const otEl = document.getElementById('otHrs');
+  const flags = [];
+  if (p.ot>0) flags.push(p.ot+' OT');
+  if (p.dt>0) flags.push(p.dt+' 2x');
+  otEl.classList.toggle('hidden', flags.length===0);
+  otEl.textContent = flags.join(' \u00B7 ');
+
+  // savings helper
+  const sg = state.settings.savingsGoal||0;
+  const sl = document.getElementById('savingsLine');
+  if (sg>0 && total>0){
+    sl.classList.remove('hidden');
+    const left = p.net - sg;
+    sl.innerHTML = left>=0
+      ? '\uD83D\uDC8E Save $'+money(sg)+' \u2192 <b>$'+money(left)+'</b> left to spend'
+      : '<span class="warn">\u26A0 This check is $'+money(-left)+' short of your $'+money(sg)+' savings goal</span>';
+  } else {
+    sl.classList.add('hidden');
+  }
+
+  // breakdown
+  const bd = document.getElementById('breakdown');
+  const lines = [
+    ['Regular '+p.reg+' \u00D7 $'+s.baseRate, p.regPay, ''],
+    ...(p.ot>0 ? [['Overtime '+p.ot+' \u00D7 $'+s.otRate, p.otPay, 'ot']] : []),
+    ...(p.dt>0 ? [['Sunday 2x '+p.dt+' \u00D7 $'+(s.sundayRate||s.baseRate*2), p.dtPay, 'ot']] : []),
+    ['Gross pay', p.gross, 'strong'],
+    ['Federal tax', -p.fwh, ''],
+    ['Social Security', -p.socSec, ''],
+    ['Medicare', -p.medicare, ''],
+    ['MA state tax', -p.maSwh, ''],
+    ['MA PFL', -p.mapfl, ''],
+    ['Union dues', -p.dues, ''],
+    ['LPL', -p.lpl, ''],
+    ['Net pay', p.net, 'green'],
+  ];
+  bd.innerHTML = lines.map(([l,a,cls]) =>
+    '<div class="bd-line '+cls+'"><span>'+l+'</span><span>'+(a<0?'\u2212':'')+'$'+money(Math.abs(a))+'</span></div>'
+  ).join('');
+  bd.classList.toggle('hidden', !showBd);
+  document.getElementById('bdChevron').innerHTML = showBd ? '&#9652;' : '&#9662;';
+
+  // actual check compare
+  const comp = document.getElementById('compare');
+  comp.classList.toggle('hidden', !showComp);
+  const tc = document.getElementById('toggleComp');
+  const isVerified = !!(week && week.actual);
+  tc.innerHTML = isVerified ? '&#10003; Verified' : '&#10003; Actual check';
+  tc.classList.toggle('v', isVerified);
+  if (showComp){
+    const a = (week && week.actual) || {};
+    let resultHtml = '';
+    if (a.net > 0){
+      const rawP = calcPayRaw(hours, s);
+      const diff = p.net - a.net;
+      const grossOk = !(a.gross>0) || Math.abs(a.gross - rawP.gross) <= 0.5;
+      resultHtml = '<div class="compresult" style="margin-bottom:10px">'
+        + '<div>Estimated: <b>$'+money(p.net)+'</b> \u00B7 Actual: <b class="good">$'+money(a.net)+'</b></div>'
+        + '<div class="'+(Math.abs(diff)<=2?'good':'warn')+'">Off by '+(diff>=0?'+':'\u2212')+'$'+money(Math.abs(diff))+'</div>'
+        + (a.skip ? '<div class="dimtext">Marked unusual \u2014 excluded from calibration</div>'
+          : !grossOk ? '<div class="warn">\u26A0 Gross doesn\u2019t match (est $'+money(rawP.gross)+' vs $'+money(a.gross)+') \u2014 check your hours. This week is excluded from calibration.</div>'
+          : (!(a.gross>0) && Math.abs(rawP.net - a.net) > 10) ? '<div class="warn">\u26A0 Big gap \u2014 auto-excluded from calibration (usually means payroll paid different hours than you logged). If your hours ARE right, enter the gross from the stub to verify and count this check.</div>'
+                     : '<div class="dimtext">Counted in auto-calibration \u2713</div>')
+        + '</div>';
+    }
+    comp.innerHTML = resultHtml
+      + '<div class="compform">'
+      + '<div class="comprow"><label for="actNet">Actual net (from stub)</label>'
+      + '<input class="compinput" id="actNet" type="number" inputmode="decimal" step="0.01" placeholder="0.00" value="'+(a.net||'')+'"></div>'
+      + '<div class="comprow"><label for="actGross">Actual gross (optional)</label>'
+      + '<input class="compinput" id="actGross" type="number" inputmode="decimal" step="0.01" placeholder="0.00" value="'+(a.gross||'')+'"></div>'
+      + '<label class="skiprow"><input type="checkbox" id="actSkip"'+(a.skip?' checked':'')+'> Unusual check (makeup pay, bonus\u2026) \u2014 don\u2019t use for calibration</label>'
+      + '<div class="compbtns">'
+      + '<button class="smallbtn primary" id="saveActual">Save</button>'
+      + (a.net>0 ? '<button class="smallbtn danger" id="removeActual">Remove</button>' : '')
+      + '</div></div>';
+  }
+
+  // repeat last week
+  const prevKey = (()=>{ const d=new Date(weekEnd); d.setDate(d.getDate()-7); return toKey(d); })();
+  const prevW = state.weeks[prevKey];
+  const prevHas = prevW && (prevW.hours||[]).some(x=>x>0);
+  document.getElementById('repeatBtn').classList.toggle('hidden', !(total===0 && prevHas));
+
+  // share timesheet
+  document.getElementById('shareBtn').classList.toggle('hidden', total<=0);
+
+  // days
+  const todayKey = toKey(new Date());
+  const sundayOn = !!state.settings.workSundays;
+  const list = document.getElementById('dayList');
+  list.innerHTML = '';
+  for (let i=0;i<7;i++){
+    const d = new Date(weekEnd); d.setDate(d.getDate()-(6-i));
+    const isToday = toKey(d)===todayKey;
+    const h = hours[i];
+    const note = notes[i] || '';
+    const dayOff = (i===0 && !sundayOn && h<=0);
+    const sunAsk = dayOff && sunPrompt;
+    const open = openDay===i && !dayOff;
+    const confirming = confirmDay===i;
+    const card = document.createElement('div');
+    card.className = 'day'+(open?' open':'')+(dayOff && !sunAsk?' off':'')+(sunAsk?' sunask':'')+(confirming?' confirm':'');
+    card.innerHTML =
+      '<button class="dayhead" data-day="'+i+'">'
+      + '<span><span class="dayname'+(isToday?' today':'')+'">'+DAYS[d.getDay()]+' <span class="daydate">'+fmtShort(d)+'</span></span>'
+      + (isToday?'<span class="todaytag">TODAY</span>':'') + '</span>'
+      + '<span style="text-align:right"><span class="dayhrs'+(h>0?'':' empty')+'">'+(h>0? h+' hrs':'\u2014')+'</span>'
+      + (dayPremium(i,h,s) ? '<span class="dayot">'+dayPremium(i,h,s)+'</span>' : '')
+      + '</span></button>'
+      + (sunAsk ?
+        '<div class="confirmbody">'
+        + '<span class="confirmtext" style="color:var(--orange)">Sundays are off \u2014 pay is 2x when on.</span>'
+        + '<button class="confirmbtn keep" data-sunkeep="1">Keep off</button>'
+        + '<button class="confirmbtn del" style="background:var(--orange); color:var(--orange-text)" data-sunon="1">Turn on</button>'
+        + '</div>'
+      : '')
+      + (confirming ?
+        '<div class="confirmbody">'
+        + '<span class="confirmtext">Clear '+DAYS[d.getDay()]+' '+fmtShort(d)+' \u2014 '+h+' hrs?'+(note?' (note kept)':'')+'</span>'
+        + '<button class="confirmbtn keep" data-canceldel="'+i+'">Keep</button>'
+        + '<button class="confirmbtn del" data-confirmdel="'+i+'">Clear</button>'
+        + '</div>'
+      : '')
+      + (!open && !confirming && note ? '<span class="daynote-preview">\uD83D\uDCDD '+escapeHtml(note)+'</span>' : '')
+      + (open && !confirming ?
+        '<div class="daybody">'
+        + '<div class="chiprow">'+[8,9,10,11,12].map(v=>'<button class="chip'+(h===v?' on':'')+'" data-set="'+i+':'+v+'">'+v+'</button>').join('')+'</div>'
+        + '<div class="chiprow">'
+        +   '<button class="chip" data-adj="'+i+':-0.5">\u2212\u00BD</button>'
+        +   '<button class="chip" data-adj="'+i+':0.5">+\u00BD</button>'
+        +   '<button class="chip clear" data-set="'+i+':0">Clear</button>'
+        +   '<button class="chip next" data-next="'+i+'">'+(i<6?'Next \u203A':'Done')+'</button>'
+        + '</div>'
+        + '<input class="noteinput" type="text" maxlength="80" placeholder="Note (optional) \u2014 e.g. why the OT, job site\u2026" value="'+escapeAttr(note)+'" data-note="'+i+'">'
+        + '</div>' : '');
+    list.appendChild(card);
+  }
+}
+function escapeHtml(s){ return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function escapeAttr(s){ return escapeHtml(s).replace(/"/g,'&quot;'); }
+
+// ============ RENDER: HISTORY ============
+function renderHistory(){
+  const year = new Date().getFullYear();
+  let g=0,n=0,h=0,t=0,count=0;
+  const rows = [];
+  for (const [k,v] of Object.entries(state.weeks)){
+    const th = (v.hours||[]).reduce((a,b)=>a+b,0);
+    if (th<=0) continue;
+    // Prefer real numbers when we have them
+    const p = calcPay(v.hours||[], ratesForW(v));
+    const useNet = (v.actual && v.actual.net>0) ? v.actual.net : p.net;
+    const useGross = (v.actual && v.actual.gross>0) ? v.actual.gross : p.gross;
+    const hasNotes = (v.notes||[]).some(x=>x) || !!v.weekNote;
+    const verified = !!(v.actual && v.actual.net>0);
+    if (fromKey(k).getFullYear()===year){ g+=useGross; n+=useNet; h+=th; t+=(useGross-useNet); count++; }
+    rows.push({k, d:fromKey(k), th, p, useNet, hasNotes, verified});
+  }
+  rows.sort((a,b)=>b.d-a.d);
+
+  document.getElementById('ytdTitle').textContent = year + ' totals';
+  document.getElementById('ytdGrid').innerHTML = [
+    ['Gross','$'+money(g),'var(--text)'],
+    ['Take-home','$'+money(n),'var(--green)'],
+    ['Hours',''+h,'var(--text)'],
+    ['Taxes + deductions','$'+money(t),'var(--dim)'],
+  ].map(([l,v,c])=>'<div><div class="glabel">'+l+'</div><div class="gval" style="color:'+c+'">'+v+'</div></div>').join('');
+
+  const projGrid = document.getElementById('projGrid');
+  const projNote = document.getElementById('projNote');
+  if (count>0){
+    const avgG=g/count, avgN=n/count, avgH=h/count;
+    const sg = state.settings.savingsGoal||0;
+
+    // Expected total for THIS year: what's earned so far + avg week x remaining unlogged weeks
+    const loggedKeys = new Set(rows.filter(r=>r.d.getFullYear()===year).map(r=>r.k));
+    let remaining = 0;
+    for (let d = weekEndSat(new Date()); d.getFullYear()===year; d.setDate(d.getDate()+7)){
+      if (!loggedKeys.has(toKey(d))) remaining++;
+    }
+    const expG = g + avgG*remaining, expN = n + avgN*remaining;
+
+    const cells = [
+      ['Expected '+year+' gross','$'+money(expG),'var(--text)'],
+      ['Expected '+year+' take-home','$'+money(expN),'var(--green)'],
+      ['Full-year pace (gross)','$'+money(avgG*52),'var(--dim)'],
+      ['Full-year pace (take-home)','$'+money(avgN*52),'var(--dim)'],
+      ['Avg hrs / week', (Math.round(avgH*10)/10).toString(),'var(--text)'],
+      ['Avg check','$'+money(avgN),'var(--dim)'],
+    ];
+    if (sg>0){
+      cells.push(['Saved / year at $'+money(sg)+'/wk','$'+money(sg*52),'var(--green)']);
+      cells.push(['To live on / week','$'+money(Math.max(0,avgN-sg)),'var(--text)']);
+    }
+    projGrid.innerHTML = cells.map(([l,v,c])=>'<div><div class="glabel">'+l+'</div><div class="gval" style="color:'+c+'">'+v+'</div></div>').join('');
+    projNote.textContent = 'Expected '+year+' = earned so far + your average week \u00D7 '+remaining+' weeks left this year. Full-year pace = what a complete year at this rate would look like.';
+  } else {
+    projGrid.innerHTML = '';
+    projNote.textContent = 'Log a week or two and this will project your yearly pay.';
+  }
+
+  // pay chart — last 12 checks, oldest to newest
+  const chartPanel = document.getElementById('chartPanel');
+  const chartRows = [...rows].sort((a,b)=>a.d-b.d).slice(-12);
+  if (chartRows.length >= 2){
+    chartPanel.classList.remove('hidden');
+    const maxN = Math.max(...chartRows.map(r=>r.useNet));
+    document.getElementById('chart').innerHTML = chartRows.map(r=>{
+      const hpct = Math.max(3, Math.round(r.useNet/maxN*100));
+      return '<button class="bar" data-goto="'+r.k+'" aria-label="Week of '+fmtShort(r.d)+', $'+money(r.useNet)+'">'
+        + '<span class="chartval">'+(Math.round(r.useNet/10)*10>=1000 ? (r.useNet/1000).toFixed(1)+'k' : Math.round(r.useNet))+'</span>'
+        + '<span class="barfill'+(r.verified?' v':'')+'" style="height:'+hpct+'%"></span>'
+        + '<span class="barlabel">'+fmtShort(r.d)+'</span></button>';
+    }).join('');
+    document.getElementById('chartFrom').textContent = '';
+    document.getElementById('chartTo').textContent = '\u25A0 green = verified check';
+  } else {
+    chartPanel.classList.add('hidden');
+  }
+
+  const hl = document.getElementById('histList');
+  hl.innerHTML = rows.length===0
+    ? '<p class="empty-msg">No weeks logged yet. Add hours on the This Week tab and they\u2019ll show up here.</p>'
+    : rows.map(r =>
+      '<button class="histrow" data-goto="'+r.k+'">'
+      + '<span><div class="histweek">Week of '+fmtShort(r.d)+'</div>'
+      + '<div class="histsub">'+r.th+' hrs'+(r.p.ot>0?' \u00B7 '+r.p.ot+' OT':'')+(r.p.dt>0?' \u00B7 '+r.p.dt+' 2x':'')+(r.hasNotes?' \u00B7 \uD83D\uDCDD':'')
+      + (r.verified?' \u00B7 <span class="verified">\u2713 verified</span>':'')+'</div></span>'
+      + '<span class="histnet">$'+money(r.useNet)+'</span></button>'
+    ).join('');
+}
+
+function syncSunSeg(){
+  document.querySelectorAll('[data-sun-pick]').forEach(b=>
+    b.classList.toggle('on', (b.dataset.sunPick==='on') === !!state.settings.workSundays));
+}
+
+// ============ SHIFT CALCULATOR ============
+// Rules from Juan's contract: breaks are paid (7-3 day = 8 hrs).
+// Working through coffee = +0.5 OT on top; through lunch = +1.0 OT on top.
+function updateShiftCalc(){
+  const out = document.getElementById('shResult');
+  if (!out) return;
+  const s = state.settings;
+  const sv = document.getElementById('shStart').value;
+  const ev = document.getElementById('shEnd').value;
+  if (!sv || !ev){ out.innerHTML = '<span class="dimtext">Enter start and end times.</span>'; return; }
+  const [sh,sm] = sv.split(':').map(Number);
+  let [eh,em] = ev.split(':').map(Number);
+  // Payroll rounds clock-out UP to the next half hour (4:12 -> 4:30, 4:31 -> 5:00)
+  if (em % 30 !== 0){
+    em = em < 30 ? 30 : 0;
+    if (em === 0) eh = (eh + 1) % 24;
+  }
+  let elapsed = (eh*60+em - (sh*60+sm))/60;
+  if (elapsed < 0) elapsed += 24; // overnight shift
+  elapsed = Math.round(elapsed*4)/4;
+  if (elapsed <= 0){ out.innerHTML = '<span class="dimtext">End time must be after start time.</span>'; return; }
+  const credits = (document.getElementById('shCoffee').checked ? 0.5 : 0)
+                + (document.getElementById('shLunch').checked ? 1 : 0);
+  const cap = s.dailyOtThreshold || 8;
+  const reg = Math.min(elapsed, cap);
+  const ot = Math.max(0, elapsed - cap) + credits;
+  const logAs = elapsed + credits;
+  const pay = reg*s.baseRate + ot*s.otRate;
+  // What this day adds to the weekly take-home: marginal tax rates (12% fed, 6.2% SS,
+  // 1.45% Medicare, 5% MA, 0.46% PFL) plus dues/LPL on the paid hours
+  const netAdd = pay*(1 - .12 - .062 - .0145 - .05 - .0046) - logAs*(s.duesPerHr + s.lplPerHr);
+  const roundedNote = em !== Number(ev.split(':')[1]) ? ' (rounds to '+(eh%12===0?12:eh%12)+':'+String(em).padStart(2,'0')+(eh<12?'am':'pm')+')' : '';
+  out.innerHTML =
+    '<div>Worked '+elapsed+' hrs'+roundedNote+(credits>0 ? ' + '+credits+' OT break credit' : '')+'</div>'
+    + '<div style="margin-top:4px">'+reg+' reg + '+ot+' OT \u2192 <b>$'+money(pay)+'</b> gross \u00B7 \u2248 <b class="good">$'+money(netAdd)+'</b> take-home</div>'
+    + '<div style="margin-top:6px" class="good">\uD83D\uDCDD Log this day as: <b>'+logAs+' hrs</b></div>'
+    + (credits>0 && elapsed<cap ? '<div class="dimtext" style="margin-top:4px">Short day + break credit: logging the total counts the credit as regular time (slightly low). Rare case \u2014 note it on the day.</div>' : '');
+}
+
+// ============ QUICK CALCULATOR ============
+function updateQuickCalc(){
+  const out = document.getElementById('qcResult');
+  if (!out) return;
+  const s = state.settings;
+  const reg = parseFloat(document.getElementById('qcReg').value)||0;
+  const ot = parseFloat(document.getElementById('qcOt').value)||0;
+  const dt = parseFloat(document.getElementById('qcDt').value)||0;
+  const hrs = reg+ot+dt;
+  if (hrs<=0){ out.innerHTML = '<span class="dimtext">Enter hours above to see the pay.</span>'; return; }
+  const gross = reg*s.baseRate + ot*s.otRate + dt*(s.sundayRate||s.baseRate*2);
+  const c = calibration();
+  const fwh = calcFWH(gross) + c.offset;
+  const net = gross - fwh - gross*.062 - gross*.0145 - Math.max(0,gross*.05-1.92) - gross*.0046 - hrs*s.duesPerHr - hrs*s.lplPerHr;
+  out.innerHTML =
+    '<div>'+hrs+' hrs \u2192 Gross: <b>$'+money(gross)+'</b></div>'
+    + '<div style="margin-top:4px">Take-home: <b class="good" style="font-size:17px">$'+money(net)+'</b></div>';
+}
+
+// ============ RENDER: SETTINGS ============
+function renderSettings(){
+  const fields = [
+    ['baseRate','Base rate ($/hr)'],
+    ['otRate','Overtime rate ($/hr)'],
+    ['sundayRate','Sunday rate ($/hr, double time)'],
+    ['dailyOtThreshold','OT starts after (hrs/day)'],
+    ['otThreshold','OT starts after (hrs/week)'],
+    ['duesPerHr','Union dues ($/hr worked)'],
+    ['lplPerHr','LPL ($/hr worked)'],
+    ['savingsGoal','Savings goal ($/week, 0 = off)'],
+  ];
+  document.getElementById('setList').innerHTML =
+    '<div class="setrow"><label for="set-userName">Your name (shown on timesheets)</label>'
+    + '<input id="set-userName" type="text" maxlength="40" style="width:150px; text-align:left; font-weight:600;" placeholder="Optional" value="'+escapeAttr(state.settings.userName||'')+'" data-textkey="userName"></div>'
+    + fields.map(([k,label])=>
+    '<div class="setrow"><label for="set-'+k+'">'+label+'</label>'
+    + '<input id="set-'+k+'" type="number" inputmode="decimal" step="0.001" value="'+state.settings[k]+'" data-key="'+k+'"></div>'
+  ).join('');
+
+  const c = calibration();
+  document.getElementById('calibInfo').innerHTML = c.count>0
+    ? 'Auto-calibration: estimates adjusted by <b>'+(c.offset>=0?'\u2212':'+')+'$'+money(Math.abs(c.offset))+'</b> based on <b>'+c.count+'</b> verified check'+(c.count===1?'':'s')+'. Every real check you enter makes it sharper.'
+    : 'No verified checks yet. Enter your actual net on a week (\u2713 Actual check) and estimates will self-tune.';
+  syncSunSeg();
+  updateQuickCalc();
+  updateShiftCalc();
+  applyTheme();
+}
+
+// ============ BACKUP ============
+function doExport(){
+  // v2 backup: pay + bills together. Old pay-only backups still restore fine.
+  const bundle = { app:'paybills', v:2, pay: state, bills: bstate };
+  const blob = new Blob([JSON.stringify(bundle, null, 1)], {type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  const d = new Date();
+  a.download = 'paybills-backup-'+toKey(d)+'.json';
+  document.body.appendChild(a); a.click(); a.remove();
+  document.getElementById('backupMsg').innerHTML = '<span class="good">Backup exported \u2713 Save it to Files or iCloud.</span>';
+}
+function doImport(file){
+  const r = new FileReader();
+  r.onload = ()=>{
+    try{
+      const d = JSON.parse(r.result);
+      if (!d || typeof d!=='object') throw new Error('bad');
+      let restored = '';
+      if (d.app==='paybills' && d.pay){
+        // v2 bundle: pay + bills
+        const p = d.pay;
+        state = { weeks:p.weeks||{}, settings:{...DEFAULTS, ...(p.settings||{})}, theme:p.theme||'auto', seeded:true };
+        save();
+        if (d.bills){
+          bstate = { templates:d.bills.templates||{}, payments:d.bills.payments||{},
+                     settings:{...BDEF.settings, ...(d.bills.settings||{})}, ui:{...BDEF.ui, ...(d.bills.ui||{})} };
+          bsave();
+        }
+        restored = 'Pay + Bills backup restored \u2713';
+      } else if (d.weeks){
+        // legacy pay-only backup — bills data untouched
+        state = { weeks:d.weeks||{}, settings:{...DEFAULTS, ...(d.settings||{})}, theme:d.theme||'auto', seeded:true };
+        save();
+        restored = 'Pay backup restored \u2713 (bills unchanged)';
+      } else throw new Error('bad');
+      applyTheme(); renderWeek(); renderSettings();
+      document.getElementById('backupMsg').innerHTML = '<span class="good">'+restored+'</span>';
+    }catch(e){
+      document.getElementById('backupMsg').innerHTML = '<span class="warn">That file doesn\u2019t look like a Paycheck Tracker backup.</span>';
+    }
+  };
+  r.readAsText(file);
+}
+
+// ============ TIMESHEET IMAGE (hours + notes only — no pay info) ============
+function wrapText(ctx, text, maxW){
+  const words = text.split(' ');
+  const lines = [];
+  let line = '';
+  for (const w of words){
+    const test = line ? line+' '+w : w;
+    if (ctx.measureText(test).width > maxW && line){ lines.push(line); line = w; }
+    else line = test;
+  }
+  if (line) lines.push(line);
+  return lines.slice(0,2); // cap at 2 lines per note
+}
+function shareTimesheet(){
+  const week = getWeek();
+  const hours = getHours();
+  const notes = getNotes();
+  const s = ratesForW(week);
+  const total = hours.reduce((a,b)=>a+b,0);
+  const { reg, ot, dt } = splitHours(hours, s);
+  const name = (state.settings.userName||'').trim();
+
+  const W = 1080, PAD = 64;
+  const cv = document.createElement('canvas');
+  const ctx = cv.getContext('2d');
+
+  // Pre-measure note lines to size the canvas
+  ctx.font = '400 30px -apple-system, Helvetica, Arial';
+  const noteLines = {};
+  let bodyH = 0;
+  for (let i=0;i<7;i++){ // timesheet stays chronological: Sun first
+    const nl = notes[i] ? wrapText(ctx, notes[i], W-PAD*2-420) : [];
+    noteLines[i] = nl;
+    bodyH += 92 + nl.length*40;
+  }
+  const weekNote = (week && week.weekNote) || '';
+  const weekNoteLines = weekNote ? wrapText(ctx, weekNote, W-PAD*2) : [];
+  const H = 300 + (weekNoteLines.length ? weekNoteLines.length*38 + 24 : 0) + bodyH + 330;
+  cv.width = W; cv.height = H;
+
+  // Background
+  ctx.fillStyle = '#FFFFFF'; ctx.fillRect(0,0,W,H);
+  ctx.fillStyle = '#E86A00'; ctx.fillRect(0,0,W,14);
+
+  // Header
+  ctx.fillStyle = '#68717F';
+  ctx.font = '600 26px ui-monospace, Menlo, monospace';
+  ctx.fillText('TIMESHEET', PAD, 96);
+  ctx.fillStyle = '#1A1F26';
+  ctx.font = '800 52px -apple-system, Helvetica, Arial';
+  const endStr = (weekEnd.getMonth()+1)+'/'+weekEnd.getDate()+'/'+weekEnd.getFullYear();
+  ctx.fillText('Week ending Sat '+endStr, PAD, 158);
+  if (name){
+    ctx.fillStyle = '#68717F';
+    ctx.font = '500 32px -apple-system, Helvetica, Arial';
+    ctx.fillText(name, PAD, 206);
+  }
+  let y = name ? 262 : 232;
+  ctx.strokeStyle = '#D9DEE5'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(PAD, y); ctx.lineTo(W-PAD, y); ctx.stroke();
+  y += 24;
+
+  // Week note — applies to the whole week, shown before the days
+  if (weekNoteLines.length){
+    ctx.fillStyle = '#E86A00';
+    ctx.font = 'italic 600 30px -apple-system, Helvetica, Arial';
+    for (const ln of weekNoteLines){ y += 38; ctx.fillText('\u2022 '+ln, PAD, y); }
+    y += 24;
+  }
+
+  // Day rows — chronological (Sun first) for the boss's copy
+  for (let i=0;i<7;i++){
+    const d = new Date(weekEnd); d.setDate(d.getDate()-(6-i));
+    const h = hours[i];
+    const rowTop = y;
+    y += 60;
+    ctx.fillStyle = '#68717F';
+    ctx.font = '600 28px ui-monospace, Menlo, monospace';
+    ctx.fillText(DAYS[d.getDay()]+' '+fmtShort(d), PAD, y);
+    ctx.fillStyle = h>0 ? '#1A1F26' : '#B7BEC9';
+    ctx.font = '800 38px ui-monospace, Menlo, monospace';
+    const hrsTxt = h>0 ? h+' hrs' : '\u2014';
+    const wHrs = ctx.measureText(hrsTxt).width;
+    ctx.fillText(hrsTxt, W-PAD-wHrs, y);
+    const prem = dayPremium(i, h, s);
+    if (prem){
+      ctx.fillStyle = '#E86A00';
+      ctx.font = '700 26px ui-monospace, Menlo, monospace';
+      ctx.fillText(prem, W-PAD-wHrs-24-ctx.measureText(prem).width, y);
+    }
+    // note lines
+    ctx.fillStyle = '#68717F';
+    ctx.font = 'italic 400 30px -apple-system, Helvetica, Arial';
+    for (const ln of noteLines[i]){ y += 40; ctx.fillText(ln, PAD, y); }
+    y += 32;
+    if (i < 6){ // no thin divider after the last day — the heavy total rule follows
+      ctx.strokeStyle = '#EDEFF3'; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(PAD, y-6); ctx.lineTo(W-PAD, y-6); ctx.stroke();
+    }
+  }
+
+  // Totals — heavy divider, then clear space before the text
+  y += 18;
+  ctx.strokeStyle = '#1A1F26'; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.moveTo(PAD, y); ctx.lineTo(W-PAD, y); ctx.stroke();
+  y += 64;
+  ctx.fillStyle = '#1A1F26';
+  ctx.font = '800 40px ui-monospace, Menlo, monospace';
+  ctx.fillText('Total: '+total+' hrs', PAD, y);
+  const sub = 'Regular '+reg+(ot>0 ? '  \u00B7  Overtime '+ot : '')+(dt>0 ? '  \u00B7  Sunday 2x '+dt : '');
+  ctx.fillStyle = (ot>0||dt>0) ? '#E86A00' : '#68717F';
+  ctx.font = '600 30px ui-monospace, Menlo, monospace';
+  ctx.fillText(sub, PAD, y+48);
+
+  // Footer: when this was generated (useful if hours are ever disputed)
+  ctx.fillStyle = '#B7BEC9';
+  ctx.font = '400 22px ui-monospace, Menlo, monospace';
+  const gen = new Date();
+  ctx.fillText('Generated '+(gen.getMonth()+1)+'/'+gen.getDate()+'/'+gen.getFullYear(), PAD, y+100);
+
+  const fname = 'timesheet-'+toKey(weekEnd)+'.png';
+  cv.toBlob(async (blob)=>{
+    if (!blob) return;
+    const file = new File([blob], fname, {type:'image/png'});
+    if (navigator.canShare && navigator.canShare({files:[file]})){
+      try{ await navigator.share({files:[file], title:'Timesheet week ending '+endStr}); }
+      catch(e){ /* user cancelled */ }
+    } else {
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob); a.download = fname;
+      document.body.appendChild(a); a.click(); a.remove();
+    }
+  }, 'image/png');
+}
+
+// ============ EVENTS ============
+document.addEventListener('click', (e)=>{
+  const t = e.target.closest('button');
+  if (!t) return;
+  if (t.dataset.screen){
+    document.querySelectorAll('.tab').forEach(b=>{ b.classList.toggle('on', b===t); b.setAttribute('aria-selected', b===t); });
+    ['week','bills','history','settings'].forEach(sc=>{
+      document.getElementById('screen-'+sc).classList.toggle('hidden', sc!==t.dataset.screen);
+    });
+    if (t.dataset.screen==='bills') renderBills();
+    if (t.dataset.screen==='history') renderHistory();
+    if (t.dataset.screen==='settings') renderSettings();
+    return;
+  }
+  if (t.dataset.themePick){ state.theme = t.dataset.themePick; save(); applyTheme(); return; }
+  if (t.dataset.sunPick){
+    state.settings.workSundays = (t.dataset.sunPick==='on');
+    save(); syncSunSeg(); return;
+  }
+  if (t.id==='weekHome'){
+    const cur = weekEndSat(new Date());
+    if (toKey(cur)!==toKey(weekEnd)){
+      weekEnd = cur;
+      const td = new Date().getDay();
+      openDay = (td===0 && !state.settings.workSundays) ? null : td;
+      showComp=false; renderWeek();
+    }
+    return;
+  }
+  if (t.id==='prevWeek' || t.id==='nextWeek'){
+    const dir = t.id==='nextWeek' ? 1 : -1;
+    weekEnd.setDate(weekEnd.getDate() + dir*7);
+    openDay=null; confirmDay=null; sunPrompt=false; showComp=false; renderWeek(); weekSlide(dir); return;
+  }
+  if (t.id==='toggleComp'){ showComp=!showComp; renderWeek(); return; }
+  if (t.id==='saveActual'){
+    const net = parseFloat(document.getElementById('actNet').value)||0;
+    const gross = parseFloat(document.getElementById('actGross').value)||0;
+    const skip = !!(document.getElementById('actSkip') && document.getElementById('actSkip').checked);
+    if (net>0){
+      const w = touchWeek();
+      w.actual = { net, gross, skip };
+      save();
+    }
+    renderWeek();
+    const b = document.getElementById('saveActual');
+    if (b && net>0){
+      b.textContent = 'Saved \u2713';
+      b.style.background = 'var(--green)';
+      setTimeout(()=>{ showComp = false; renderWeek(); }, 900); // flash, then tuck the panel away
+    }
+    return;
+  }
+  if (t.id==='removeActual'){
+    const w = getWeek();
+    if (w) { delete w.actual; save(); }
+    renderWeek(); return;
+  }
+  if (t.id==='repeatBtn'){
+    const d=new Date(weekEnd); d.setDate(d.getDate()-7);
+    const prevW = state.weeks[toKey(d)];
+    if (prevW && prevW.hours){
+      const w = touchWeek();
+      w.hours = [...prevW.hours];
+      save(); renderWeek();
+    }
+    return;
+  }
+  if (t.id==='exportBtn'){ doExport(); return; }
+  if (t.id==='shareBtn'){ shareTimesheet(); return; }
+  if (t.id==='importBtn'){ document.getElementById('importFile').click(); return; }
+  if (t.dataset.confirmdel!==undefined){
+    setDay(+t.dataset.confirmdel, 0);
+    confirmDay = null; renderWeek(); return;
+  }
+  if (t.dataset.canceldel!==undefined){
+    confirmDay = null; renderWeek(); return;
+  }
+  if (t.dataset.sunon!==undefined){
+    state.settings.workSundays = true; save();
+    sunPrompt = false; openDay = 0; // wake Sunday up and open it for entry
+    renderWeek(); return;
+  }
+  if (t.dataset.sunkeep!==undefined){
+    sunPrompt = false; renderWeek(); return;
+  }
+  if (t.dataset.day!==undefined){
+    if (lpFired){ lpFired=false; return; } // this tap was the tail of a long-press
+    const i = +t.dataset.day;
+    // Greyed-out Sunday: tapping it asks whether to enable, never logs hours
+    if (i===0 && !state.settings.workSundays && (getHours()[0]||0)<=0){
+      sunPrompt = !sunPrompt; confirmDay=null; renderWeek(); return;
+    }
+    confirmDay = null; sunPrompt = false;
+    openDay = (openDay===i? null : i); renderWeek(); return;
+  }
+  if (t.dataset.set){ const [i,v] = t.dataset.set.split(':').map(Number); setDay(i,v); return; }
+  if (t.dataset.adj){ const [i,dv] = t.dataset.adj.split(':').map(Number); setDay(i, getHours()[i]+dv); return; }
+  if (t.dataset.next!==undefined){
+    const i = +t.dataset.next;
+    openDay = i<6 ? i+1 : null;
+    renderWeek(); return;
+  }
+  if (t.dataset.goto){
+    weekEnd = weekEndSat(fromKey(t.dataset.goto));
+    openDay=null; showComp=false;
+    document.querySelector('[data-screen="week"]').click();
+    renderWeek(); return;
+  }
+});
+document.addEventListener('input', (e)=>{
+  const el = e.target;
+  if (el.dataset && el.dataset.qc){ updateQuickCalc(); return; }
+  if (el.dataset && el.dataset.sh){ updateShiftCalc(); return; }
+  if (el.dataset && el.dataset.textkey){
+    state.settings[el.dataset.textkey] = el.value;
+    save(); return;
+  }
+  if (el.dataset && el.dataset.key){
+    state.settings[el.dataset.key] = parseFloat(el.value)||0;
+    save(); updateQuickCalc(); return;
+  }
+  if (el.dataset && el.dataset.note!==undefined){ setNote(+el.dataset.note, el.value); return; }
+  if (el.id === 'weekNoteInput'){
+    const w = touchWeek();
+    w.weekNote = el.value;
+    save(); return;
+  }
+});
+document.addEventListener('change', (e)=>{
+  const el = e.target;
+  if (el.dataset && el.dataset.sh){ updateShiftCalc(); return; }
+  if (el.dataset && el.dataset.qc){ updateQuickCalc(); return; }
+});
+document.getElementById('importFile').addEventListener('change', (e)=>{
+  if (e.target.files && e.target.files[0]) doImport(e.target.files[0]);
+  e.target.value = '';
+});
+
+// Tap the take-home card to show/hide the breakdown
+document.getElementById('payCard').addEventListener('click', (e)=>{
+  if (e.target.closest('#toggleComp') || e.target.closest('.compare') || e.target.closest('input') || e.target.closest('.smallbtn')) return;
+  showBd = !showBd;
+  renderWeek();
+});
+
+// ============ GESTURES ============
+// Swipe left/right: move between weeks (only job of horizontal swipes).
+// Long-press (0.5s) on a day with hours: ask to clear it. No gesture overlap.
+(() => {
+  const zone = document.getElementById('screen-week');
+  let x0=0, y0=0, tracking=false;
+  let lpTimer=null;
+
+  const cancelLP = () => { if (lpTimer){ clearTimeout(lpTimer); lpTimer=null; } };
+
+  zone.addEventListener('touchstart', (e)=>{
+    if (e.target.closest('input')) { tracking=false; return; } // don't fight text cursors
+    const t = e.touches[0];
+    x0=t.clientX; y0=t.clientY; tracking=true;
+
+    // Arm long-press: logged days offer delete; greyed Sunday offers enable
+    const head = e.target.closest('.dayhead');
+    if (head && head.dataset.day!==undefined){
+      const idx = +head.dataset.day;
+      const sunOffIdle = (idx===0 && !state.settings.workSundays && (getHours()[0]||0)<=0);
+      if (((getHours()[idx]||0) > 0 && confirmDay!==idx) || sunOffIdle){
+        lpTimer = setTimeout(()=>{
+          lpTimer=null; lpFired=true;
+          if (sunOffIdle){ sunPrompt = true; confirmDay = null; }
+          else { confirmDay = idx; sunPrompt = false; }
+          openDay = null; showComp=false;
+          renderWeek();
+        }, 500);
+      }
+    }
+  }, {passive:true});
+
+  zone.addEventListener('touchmove', (e)=>{
+    if (!lpTimer) return;
+    const t = e.touches[0];
+    if (Math.abs(t.clientX-x0) > 10 || Math.abs(t.clientY-y0) > 10) cancelLP(); // finger moved = scroll/swipe, not a press
+  }, {passive:true});
+
+  zone.addEventListener('touchcancel', cancelLP, {passive:true});
+
+  zone.addEventListener('touchend', (e)=>{
+    cancelLP();
+    if (!tracking) return;
+    tracking=false;
+    const t = e.changedTouches[0];
+    const dx = t.clientX - x0, dy = t.clientY - y0;
+    if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy)*1.5){
+      const dir = dx < 0 ? 1 : -1; // swipe left = next week
+      weekEnd.setDate(weekEnd.getDate() + dir*7);
+      openDay=null; confirmDay=null; sunPrompt=false; showComp=false; renderWeek(); weekSlide(dir);
+    }
+  }, {passive:true});
+})();
+
+
+// ==================================================================
+// ============ BILLS TAB (v2) ======================================
+// All bills data lives under its own storage key. It NEVER writes to
+// the pay data ('paytracker:v1') — it only reads it for cash flow.
+// ==================================================================
+const BKEY = 'billtracker:v1';
+const BDEF = { templates:{}, payments:{}, settings:{ paydayDow:5, palette:'ocean', payLag:1 }, ui:{ snapDismissed:false } };
+let bstate = JSON.parse(JSON.stringify(BDEF));
+try {
+  const bsaved = JSON.parse(localStorage.getItem(BKEY));
+  if (bsaved && typeof bsaved==='object'){
+    bstate.templates = bsaved.templates||{};
+    bstate.payments = bsaved.payments||{};
+    bstate.settings = { ...BDEF.settings, ...(bsaved.settings||{}) };
+    bstate.ui = { ...BDEF.ui, ...(bsaved.ui||{}) };
+  }
+} catch(e){}
+function bsave(){ try{ localStorage.setItem(BKEY, JSON.stringify(bstate)); }catch(e){} }
+
+// ---- Bills color palette: recolors ONLY the Bills tab (Pay keeps orange/green).
+// Each palette has dark + light variants so it stays readable in both themes.
+const BPALS = {
+  ocean:  { label:'Ocean',  dark:{acc:'#4EA1FF', good:'#2DD4BF', accText:'#14181D'}, light:{acc:'#1667D9', good:'#0F766E', accText:'#FFFFFF'} },
+  violet: { label:'Violet', dark:{acc:'#A78BFA', good:'#6EE7B7', accText:'#14181D'}, light:{acc:'#6D28D9', good:'#059669', accText:'#FFFFFF'} },
+  teal:   { label:'Teal',   dark:{acc:'#2DD4BF', good:'#A3E635', accText:'#14181D'}, light:{acc:'#0F766E', good:'#4D7C0F', accText:'#FFFFFF'} },
+  rose:   { label:'Rose',   dark:{acc:'#FB7185', good:'#FBBF24', accText:'#14181D'}, light:{acc:'#BE123C', good:'#B45309', accText:'#FFFFFF'} },
+  match:  { label:'Same as Pay', dark:null, light:null },
+};
+function bApplyPalette(){
+  let styleEl = document.getElementById('bPalStyle');
+  if (!styleEl){
+    styleEl = document.createElement('style');
+    styleEl.id = 'bPalStyle';
+    document.head.appendChild(styleEl);
+  }
+  const p = BPALS[bstate.settings.palette] || BPALS.ocean;
+  if (!p.dark){ styleEl.textContent = ''; return; } // "Same as Pay": no overrides
+  styleEl.textContent =
+    '#screen-bills{ --orange:'+p.dark.acc+'; --green:'+p.dark.good+'; --orange-text:'+p.dark.accText+'; }'
+    + '[data-theme="light"] #screen-bills{ --orange:'+p.light.acc+'; --green:'+p.light.good+'; --orange-text:'+p.light.accText+'; }'
+    + '.tab[data-screen="bills"].on{ background:'+p.dark.acc+'; color:'+p.dark.accText+'; }'
+    + '[data-theme="light"] .tab[data-screen="bills"].on{ background:'+p.light.acc+'; color:'+p.light.accText+'; }';
+}
+
+// One-time safety snapshot of the pay data, taken before Bills ever runs.
+// Frozen forever after — a third copy of your paycheck history, just in case.
+try {
+  if (!localStorage.getItem('paytracker:snapshot-v1')){
+    const paydata = localStorage.getItem(KEY);
+    if (paydata) localStorage.setItem('paytracker:snapshot-v1', paydata);
+  }
+} catch(e){}
+
+const BCATS = {
+  housing:{ic:'\uD83C\uDFE0', label:'Housing'},
+  utility:{ic:'\uD83D\uDCA1', label:'Utility'},
+  card:{ic:'\uD83D\uDCB3', label:'Credit card'},
+  loan:{ic:'\uD83C\uDFE6', label:'Loan / Klarna'},
+  sub:{ic:'\uD83D\uDCFA', label:'Subscription'},
+  other:{ic:'\uD83D\uDCC4', label:'Other'},
+};
+const BFREQS = { monthly:'Monthly', weekly:'Weekly', biweekly:'Every 2 wks', quarterly:'Quarterly', yearly:'Yearly', once:'One-time' };
+
+// ---- Per-bill icons: auto-picked from the name, manual override in the editor
+const BICONS = ['\uD83C\uDFE0','\u26A1','\uD83D\uDD25','\uD83D\uDCA7','\uD83C\uDF10','\uD83D\uDCF1','\uD83D\uDCB3','\uD83C\uDFE6','\uD83D\uDCB8','\uD83D\uDCFA','\uD83C\uDFB5','\uD83D\uDE97','\uD83C\uDFE5','\uD83D\uDCAA','\uD83D\uDC3E','\uD83C\uDF93','\uD83D\uDCE6','\uD83E\uDDFE','\uD83D\uDCA1','\uD83D\uDCC4'];
+const BICON_KEYS = [
+  [/rent|mortgage|apart|lease|hoa/, '\uD83C\uDFE0'],
+  [/gas|propane|oil|heat/, '\uD83D\uDD25'],
+  [/water|sewer/, '\uD83D\uDCA7'],
+  [/electric|power|eversource|national grid/, '\u26A1'],
+  [/internet|wifi|comcast|xfinity|fios|broadband/, '\uD83C\uDF10'],
+  [/phone|mobile|verizon|t-?mobile|at&t|att|cricket|metro/, '\uD83D\uDCF1'],
+  [/visa|master|amex|discover|credit|card|capital ?one|chase|citi/, '\uD83D\uDCB3'],
+  [/car|auto|toyota|honda|ford|vehicle/, '\uD83D\uDE97'],
+  [/insurance|geico|progressive|allstate|liberty/, '\uD83D\uDE97'],
+  [/klarna|afterpay|affirm|sezzle|paypal|zip/, '\uD83D\uDCB8'],
+  [/loan|lending|sofi|upstart|onemain/, '\uD83C\uDFE6'],
+  [/netflix|hulu|disney|youtube|hbo|max|peacock|paramount|stream|tv|prime/, '\uD83D\uDCFA'],
+  [/spotify|music|pandora|tidal/, '\uD83C\uDFB5'],
+  [/apple|icloud/, '\uD83D\uDCF1'],
+  [/gym|fitness|planet|crunch/, '\uD83D\uDCAA'],
+  [/doctor|dental|medical|health|hospital|pharm/, '\uD83C\uDFE5'],
+  [/pet|vet|dog|cat/, '\uD83D\uDC3E'],
+  [/school|tuition|daycare|child/, '\uD83C\uDF93'],
+  [/storage|unit/, '\uD83D\uDCE6'],
+];
+function bIconFor(t){
+  if (t.icon) return t.icon; // manual pick wins
+  const n = (t.name||'').toLowerCase();
+  for (const [re, ic] of BICON_KEYS){ if (re.test(n)) return ic; }
+  return (BCATS[t.cat]||BCATS.other).ic; // fall back to the category icon
+}
+const BMONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const BDOW = ['Su','Mo','Tu','We','Th','Fr','Sa'];
+// Quick-add presets: [name, category, frequency]
+const BQUICK = [
+  ['Rent','housing','monthly'], ['Electric','utility','monthly'], ['Gas','utility','monthly'],
+  ['Water','utility','monthly'], ['Phone','utility','monthly'], ['Internet','utility','monthly'],
+  ['Car insurance','other','monthly'], ['Credit card','card','monthly'], ['Loan','loan','monthly'],
+  ['Klarna','loan','biweekly'], ['YouTube','sub','monthly'], ['Apple One','sub','monthly'],
+];
+
+let bMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+let bOpen = null;          // expanded bill instance id
+let bManageOpen = false;
+let bEdit = null;          // template id being edited, or 'new'
+let bDraft = null;         // editor working values
+let bConfirmDel = false;   // delete confirmation inside editor
+let bShowPaid = false;     // paid group starts collapsed to keep the view focused
+
+function bDaysIn(y,m){ return new Date(y, m+1, 0).getDate(); }
+function bClamp(y,m,day){ return Math.min(Math.max(1, day||1), bDaysIn(y,m)); }
+function bMonthKey(y,m){ return y+'-'+String(m+1).padStart(2,'0'); }
+function bFmtDue(d){ return BMONTHS[d.getMonth()]+' '+d.getDate(); }
+function bTodayKey(){ return toKey(new Date()); }
+function bNewId(){ return 'b'+Date.now().toString(36)+Math.random().toString(36).slice(2,6); }
+
+// ---- Instances: generated fresh from templates for any month. Nothing
+// is "rolled over" or stored, so auto-roll can never break or duplicate.
+function bInstancesFor(y, m){
+  const out = [];
+  const mk = bMonthKey(y,m);
+  const mStart = new Date(y,m,1), mEnd = new Date(y,m,bDaysIn(y,m));
+  for (const [id,t] of Object.entries(bstate.templates)){
+    if (t.archived) continue;
+    if (t.startKey && mk < t.startKey) continue; // don't invent bills before they existed
+    if (t.freq==='monthly'){
+      out.push(bMkInst(id, t, new Date(y, m, bClamp(y,m,t.dueDay))));
+    } else if (t.freq==='quarterly'){
+      if ((((m - (t.dueMonth||0)) % 3) + 3) % 3 === 0)
+        out.push(bMkInst(id, t, new Date(y, m, bClamp(y,m,t.dueDay))));
+    } else if (t.freq==='yearly'){
+      if ((t.dueMonth||0) === m)
+        out.push(bMkInst(id, t, new Date(y, m, bClamp(y,m,t.dueDay))));
+    } else if (t.freq==='once'){
+      const d = fromKey(t.anchor||bTodayKey());
+      if (d.getFullYear()===y && d.getMonth()===m) out.push(bMkInst(id, t, d));
+    } else if (t.freq==='weekly' || t.freq==='biweekly'){
+      const step = t.freq==='weekly' ? 7 : 14;
+      const a = fromKey(t.anchor||bTodayKey());
+      if (a <= mEnd){
+        let d = new Date(a);
+        if (d < mStart){
+          const gap = Math.ceil((mStart - d)/(864e5*step))*step;
+          d.setDate(d.getDate()+gap);
+          while (d < mStart) d.setDate(d.getDate()+step); // guard tz edges
+        }
+        for (; d <= mEnd; d = new Date(d.getFullYear(), d.getMonth(), d.getDate()+step))
+          out.push(bMkInst(id, t, new Date(d)));
+      }
+    }
+  }
+  out.sort((a,b)=>a.due-b.due);
+  return out;
+}
+function bMkInst(id, t, due){
+  const iid = id+'@'+toKey(due);
+  const pay = bstate.payments[iid] || null;
+  return { iid, tid:id, t, due, pay };
+}
+
+// ---- Payment history per template (sorted oldest -> newest) ----
+function bPayHist(tid){
+  const rows = [];
+  for (const [iid,p] of Object.entries(bstate.payments)){
+    if (iid.startsWith(tid+'@')) rows.push({ dueKey: iid.slice(tid.length+1), ...p });
+  }
+  rows.sort((a,b)=> (a.date||a.dueKey) < (b.date||b.dueKey) ? -1 : 1);
+  return rows;
+}
+function bAvgPaid(tid){
+  const h = bPayHist(tid).slice(-6);
+  if (!h.length) return 0;
+  return h.reduce((s,r)=>s+(r.amt||0),0)/h.length;
+}
+// Best guess for an instance's amount: real payment > history average (if it varies) > template amount
+function bExpAmt(inst){
+  if (inst.pay) return inst.pay.amt||0;
+  if (inst.t.varies){ const a = bAvgPaid(inst.tid); if (a>0) return a; }
+  return inst.t.amt||0;
+}
+// Bill creep: latest payment vs average of the ones before it
+function bCreep(tid){
+  const h = bPayHist(tid);
+  if (h.length < 3) return 0;
+  const last = h[h.length-1].amt||0;
+  const prev = h.slice(0,-1);
+  const avg = prev.reduce((s,r)=>s+(r.amt||0),0)/prev.length;
+  if (avg<=0) return 0;
+  const pct = (last-avg)/avg*100;
+  return pct >= 10 ? Math.round(pct) : 0;
+}
+// Monthly-equivalent cost of a template (for subscription rollups)
+function bMonthlyEq(t){
+  const amt = t.amt||0;
+  switch(t.freq){
+    case 'weekly': return amt*52/12;
+    case 'biweekly': return amt*26/12;
+    case 'monthly': return amt;
+    case 'quarterly': return amt/3;
+    case 'yearly': return amt/12;
+    default: return 0;
+  }
+}
+// Loan progress: payments made before the app + payments recorded in it
+function bLoanProg(tid, t){
+  const made = (t.loanPaid||0) + bPayHist(tid).length;
+  const total = t.loanTotal||0;
+  return { made: Math.min(made,total), total, left: Math.max(0, total-made) };
+}
+
+// ---- Cash flow: read-only peek at the pay data ----
+function bAvgCheck(){
+  const rows = [];
+  for (const [k,v] of Object.entries(state.weeks)){
+    const th = (v.hours||[]).reduce((a,b)=>a+b,0);
+    if (th<=0) continue;
+    const net = (v.actual && v.actual.net>0) ? v.actual.net : calcPay(v.hours||[], ratesForW(v)).net;
+    rows.push({ d: fromKey(k), net });
+  }
+  rows.sort((a,b)=>b.d-a.d);
+  const last = rows.slice(0,4);
+  if (!last.length) return 0;
+  return last.reduce((s,r)=>s+r.net,0)/last.length;
+}
+function bNextPayday(){
+  const dow = bstate.settings.paydayDow;
+  const d = new Date(); d.setHours(0,0,0,0);
+  let delta = ((dow - d.getDay()) + 7) % 7;
+  if (delta === 0) delta = 7; // on payday itself, the window runs to the NEXT one
+  d.setDate(d.getDate() + delta);
+  return d;
+}
+// The check arriving next payday covers a specific week — use its REAL logged
+// hours when we have them, so this week's OT shows up in Safe to Spend today.
+function bExpectedCheck(){
+  const pd = bNextPayday();
+  const cov = weekEndSat(new Date(pd));
+  if ((bstate.settings.payLag===undefined ? 1 : bstate.settings.payLag) === 1) cov.setDate(cov.getDate()-7);
+  const w = state.weeks[toKey(cov)];
+  const logged = w && (w.hours||[]).some(h=>h>0);
+  const avg = bAvgCheck();
+  const today = new Date(); today.setHours(0,0,0,0);
+  if (logged){
+    const net = (w.actual && w.actual.net>0) ? w.actual.net : calcPay(w.hours||[], ratesForW(w)).net;
+    if (cov <= today) return { amt:net, basis:'your week ending '+bFmtDue(cov), pd };
+    if (net >= avg) return { amt:net, basis:'hours logged so far', pd }; // hours only go up — a safe floor
+  }
+  if (avg > 0) return { amt:avg, basis:'avg of last 4 checks', pd };
+  if (logged){
+    const net = (w.actual && w.actual.net>0) ? w.actual.net : calcPay(w.hours||[], ratesForW(w)).net;
+    return { amt:net, basis:'hours logged so far', pd };
+  }
+  return { amt:0, basis:'', pd };
+}
+// Unpaid instances from the last 2 months (carryover) — the bills that
+// disappear from a naive month view but very much still need paying.
+function bCarryover(){
+  const today = new Date(); today.setHours(0,0,0,0);
+  const out = []; const seen = new Set();
+  for (let i=2; i>=0; i--){
+    const d = new Date(today.getFullYear(), today.getMonth()-i, 1);
+    for (const inst of bInstancesFor(d.getFullYear(), d.getMonth())){
+      if (seen.has(inst.iid)) continue; seen.add(inst.iid);
+      if (!inst.pay && inst.due < today) out.push(inst);
+    }
+  }
+  out.sort((a,b)=>a.due-b.due);
+  return out;
+}
+// What stands between you and next payday: overdue catch-up + bills coming due
+function bDueBeforePayday(){
+  const today = new Date(); today.setHours(0,0,0,0);
+  const pd = bNextPayday();
+  const carry = bCarryover();
+  let overSum = 0;
+  for (const i of carry) overSum += bExpAmt(i);
+  const seen = new Set(carry.map(i=>i.iid));
+  const insts = [
+    ...bInstancesFor(today.getFullYear(), today.getMonth()),
+    ...bInstancesFor(pd.getFullYear(), pd.getMonth()),
+  ];
+  let dueSum = 0, dueN = 0;
+  for (const i of insts){
+    if (seen.has(i.iid)) continue; seen.add(i.iid);
+    if (i.pay) continue;
+    if (i.due >= today && i.due <= pd){ dueSum += bExpAmt(i); dueN++; }
+  }
+  return { overSum, overN: carry.length, dueSum, dueN, pd };
+}
+// On-time streak: consecutive fully on-time months, counting back from last month
+function bStreak(){
+  let earliest = null;
+  for (const iid of Object.keys(bstate.payments)){
+    const k = iid.split('@')[1]; if (!k) continue;
+    const mk = k.slice(0,7);
+    if (!earliest || mk < earliest) earliest = mk;
+  }
+  if (!earliest) return 0;
+  let streak = 0;
+  const d = new Date(); d.setDate(1); d.setMonth(d.getMonth()-1); // last month
+  for (let i=0; i<24; i++){
+    const mk = bMonthKey(d.getFullYear(), d.getMonth());
+    if (mk < earliest) break;
+    const insts = bInstancesFor(d.getFullYear(), d.getMonth());
+    if (insts.length){
+      const allOnTime = insts.every(x => x.pay && (x.pay.date||'') <= toKey(x.due));
+      if (!allOnTime) break;
+      streak++;
+    }
+    d.setMonth(d.getMonth()-1);
+  }
+  return streak;
+}
+
+// ============ RENDER: BILLS ============
+function renderBills(){
+  const y = bMonth.getFullYear(), m = bMonth.getMonth();
+  const now = new Date();
+  const isThisMonth = (y===now.getFullYear() && m===now.getMonth());
+  document.getElementById('bMonthLabel').textContent = BMONTHS[m]+' '+y;
+  document.getElementById('bThisMonthTag').classList.toggle('hidden', !isThisMonth);
+
+  bRenderSnapBanner();
+  bRenderSts();
+
+  const insts = bInstancesFor(y,m);
+  const todayK = bTodayKey();
+  let over = insts.filter(i=>!i.pay && toKey(i.due) < todayK && isThisMonthOrPast(y,m));
+  if (isThisMonth){
+    // Unpaid bills from earlier months don't vanish at month rollover — they follow you here
+    const ids = new Set(over.map(i=>i.iid));
+    const carry = bCarryover().filter(i=>!ids.has(i.iid) && !insts.some(x=>x.iid===i.iid));
+    over = [...carry, ...over].sort((a,b)=>a.due-b.due);
+  }
+  const due  = insts.filter(i=>!i.pay && !over.includes(i));
+  const paid = insts.filter(i=>i.pay);
+
+  const list = document.getElementById('bList');
+  list.innerHTML = '';
+  if (!insts.length){
+    list.innerHTML = '<p class="empty-msg" style="margin:14px 4px">'+(Object.keys(bstate.templates).length
+      ? 'Nothing due in '+BMONTHS[m]+'.'
+      : 'No bills yet. Tap <b>+ Add a bill</b> and set up rent, cards, loans, subscriptions\u2026 each one only takes a few seconds.')+'</p>';
+  }
+  const addGroup = (label, arr, cls)=>{
+    if (!arr.length) return;
+    const gl = document.createElement('div');
+    gl.className = 'b-grouplabel'+(cls?' '+cls:'');
+    gl.textContent = label;
+    list.appendChild(gl);
+    for (const i of arr) list.appendChild(bRow(i, todayK));
+  };
+  addGroup('\u26A0 Overdue', over, 'over');
+  addGroup('Coming up', due, '');
+  if (paid.length){
+    if (bShowPaid){
+      addGroup('Paid \u2713', paid, '');
+    } else {
+      const tot = paid.reduce((s,i)=>s+bExpAmt(i),0);
+      const row = document.createElement('button');
+      row.className = 'b-paidcollapse';
+      row.dataset.bshowpaid = '1';
+      row.innerHTML = '<span>\u2713 Paid ('+paid.length+') \u00B7 tap to show</span><span class="good">$'+money(tot)+'</span>';
+      const gl = document.createElement('div');
+      gl.className='b-grouplabel'; gl.textContent='Paid';
+      list.appendChild(gl); list.appendChild(row);
+    }
+  }
+
+  bRenderSummary(insts, y, m);
+  bRenderCrunch();
+  bRenderManage();
+}
+function isThisMonthOrPast(y,m){
+  const n = new Date();
+  return y < n.getFullYear() || (y===n.getFullYear() && m <= n.getMonth());
+}
+
+function bRenderSnapBanner(){
+  const el = document.getElementById('bSnapBanner');
+  if (bstate.ui.snapDismissed){ el.innerHTML=''; return; }
+  const weekCount = Object.values(state.weeks).filter(w=>(w.hours||[]).some(h=>h>0)).length;
+  el.innerHTML = '<div class="panel" style="border-color:var(--green)">'
+    + '<div class="compresult"><span class="good">\u2713 '+weekCount+' week'+(weekCount===1?'':'s')+' of pay history loaded'
+    + ' \u2014 a frozen snapshot was saved before Bills touched anything.</span></div>'
+    + '<div class="compbtns" style="margin-top:10px"><button class="smallbtn" data-bsnapok="1">Got it</button></div></div>';
+}
+
+function bRenderSts(){
+  const el = document.getElementById('bStsPanel');
+  const ec = bExpectedCheck();
+  const { overSum, overN, dueSum, dueN, pd } = bDueBeforePayday();
+  const sg = state.settings.savingsGoal||0;
+  if (ec.amt<=0 && !Object.keys(bstate.templates).length){
+    el.innerHTML = '<div class="eyebrow">Safe to spend</div>'
+      + '<div class="b-stsline">Add your bills below and this becomes your cash-flow headline: expected check \u2212 bills due before payday \u2212 savings goal.</div>';
+    return;
+  }
+  const sts = ec.amt - overSum - dueSum - sg;
+  el.innerHTML = '<div class="eyebrow">Safe to spend until payday ('+BDOW[bstate.settings.paydayDow]+' '+bFmtDue(pd)+')</div>'
+    + '<div class="b-sts '+(sts>=0?'good':'bad')+'">'+(sts<0?'\u2212':'')+'$'+money(Math.abs(sts))+'</div>'
+    + '<div class="b-stsline">Expected check ('+ec.basis+'): <b>$'+money(ec.amt)+'</b>'
+    + (overSum>0 ? '<br><span class="warn">Overdue to catch up: \u2212$'+money(overSum)+' ('+overN+' bill'+(overN===1?'':'s')+')</span>' : '')
+    + '<br>Bills due by payday: <b>\u2212$'+money(dueSum)+'</b>'+(dueN? ' ('+dueN+' bill'+(dueN===1?'':'s')+')':'')
+    + (sg>0 ? '<br>Savings goal: <b>\u2212$'+money(sg)+'</b>' : '')
+    + (sts<0 ? '<br><span class="warn">\u26A0 This stretch is tight \u2014 check the week radar below.</span>' : '')
+    + '</div>';
+}
+
+// The same headline, mirrored onto the Pay screen where hours get logged daily.
+// Updates live as hours change; tapping it jumps to the Bills tab.
+function bUpdateStrip(){
+  const el = document.getElementById('bStsStrip');
+  if (!el) return;
+  if (!Object.keys(bstate.templates).length){ el.classList.add('hidden'); return; }
+  const ec = bExpectedCheck();
+  const { overSum, dueSum, pd } = bDueBeforePayday();
+  const sts = ec.amt - overSum - dueSum - (state.settings.savingsGoal||0);
+  el.classList.remove('hidden');
+  el.innerHTML = '\uD83D\uDCB5 Safe to spend until '+BDOW[bstate.settings.paydayDow]+' '+bFmtDue(pd)+': '
+    + '<b style="color:var(--'+(sts>=0?'green':'red')+')">'+(sts<0?'\u2212':'')+'$'+money(Math.abs(sts))+'</b> \u203A';
+}
+
+function bRow(i, todayK){
+  const dueK = toKey(i.due);
+  const isOver = !i.pay && dueK < todayK && isThisMonthOrPast(i.due.getFullYear(), i.due.getMonth());
+  const open = bOpen === i.iid;
+  const amt = bExpAmt(i);
+  const creep = bCreep(i.tid);
+  const card = document.createElement('div');
+  card.className = 'day'+(open?' open':'')+(isOver?' b-over':'')+(i.pay?' b-paidrow':'');
+  const cat = BCATS[i.t.cat]||BCATS.other;
+  let sub = bIconFor(i.t)+' '+cat.label + (i.t.autopay ? ' \u00B7 autopay' : '');
+  if (i.t.cat==='loan' && i.t.loanTotal>0){
+    const pr = bLoanProg(i.tid, i.t);
+    sub += ' \u00B7 '+pr.made+'/'+pr.total+' paid';
+  }
+  if (creep && !i.pay) sub += ' \u00B7 <span class="warn">\u25B2 running '+creep+'% high</span>';
+  card.innerHTML =
+    '<button class="dayhead" data-bopen="'+i.iid+'">'
+    + '<span><span class="b-name">'+escapeHtml(i.t.name)+(i.t.varies&&!i.pay?'<span class="b-badge">~est</span>':'')+'</span>'
+    + '<span class="b-sub">'+sub+'</span></span>'
+    + '<span style="text-align:right"><span class="b-amt'+(i.pay?' paid':'')+'">'+(i.pay?'\u2713 ':'')+'$'+money(amt)+'</span>'
+    + '<span class="b-duetag'+(isOver?' over':'')+'">'+(i.pay ? 'paid '+bFmtPaidDate(i.pay) : (isOver?'was due ':'due ')+bFmtDue(i.due))+'</span></span>'
+    + '</button>'
+    + (open ? bExpanded(i, amt) : '');
+  return card;
+}
+function bFmtPaidDate(p){ return p.date ? bFmtDue(fromKey(p.date)) : ''; }
+
+function bExpanded(i, amt){
+  const t = i.t;
+  const lines = [];
+  lines.push(['Due', bFmtDue(i.due)+' \u00B7 '+(BFREQS[t.freq]||t.freq)]);
+  if (t.autopay) lines.push(['Autopay','On \u2014 just confirm it went through']);
+  if (t.cat==='card' && t.stmtDay) lines.push(['Statement closes','the '+t.stmtDay+bOrd(t.stmtDay)+' of the month']);
+  const hist = bPayHist(i.tid);
+  if (t.cat==='loan' && t.loanTotal>0){
+    const pr = bLoanProg(i.tid, t);
+    const doneD = new Date(); doneD.setDate(1); doneD.setMonth(doneD.getMonth() + Math.max(0, pr.left));
+    lines.push(['Progress', pr.made+' of '+pr.total+' payments \u00B7 '+pr.left+' left']);
+    if (pr.left>0) lines.push(['Paid off', BMONTHS[doneD.getMonth()]+' '+doneD.getFullYear()+' \u2014 frees up $'+money(t.amt||0)+'/mo']);
+    else lines.push(['Paid off','\uD83C\uDF89 Done \u2014 $'+money(t.amt||0)+'/mo freed up']);
+  }
+  if (t.cat==='sub'){
+    const mo = bMonthlyEq(t);
+    lines.push(['Costs you','$'+money(mo)+'/mo \u2248 $'+money(mo*12)+'/yr']);
+  }
+  if (hist.length){
+    const avg = bAvgPaid(i.tid);
+    lines.push(['Usual amount','$'+money(avg)+' avg over last '+Math.min(6,hist.length)]);
+  }
+  let html = '<div class="breakdown" style="margin:0 12px 4px">'
+    + lines.map(([l,v])=>'<div class="bd-line"><span>'+l+'</span><span>'+v+'</span></div>').join('');
+  if (t.cat==='loan' && t.loanTotal>0){
+    const pr = bLoanProg(i.tid, t);
+    html += '<div class="b-prog"><div class="b-progfill" style="width:'+Math.round(pr.made/Math.max(1,pr.total)*100)+'%"></div></div>';
+  }
+  if (hist.length){
+    const recent = hist.slice(-4).reverse();
+    html += recent.map(r=>'<div class="bd-line"><span class="dimtext">'+bFmtDue(fromKey(r.date||r.dueKey))+(r.note?' \u00B7 '+escapeHtml(r.note):'')+'</span><span class="dimtext">$'+money(r.amt||0)+'</span></div>').join('');
+  }
+  html += '</div>';
+
+  if (i.pay){
+    html += '<div class="b-payform" style="margin:0 12px 14px; border-top:none; padding-top:2px">'
+      + '<div class="compbtns">'
+      + '<button class="smallbtn danger" data-bunpay="'+i.iid+'">Undo payment</button>'
+      + '<button class="smallbtn" data-bedit="'+i.tid+'">Edit bill</button>'
+      + '</div></div>';
+  } else {
+    html += '<div class="b-payform" style="margin:0 12px 14px">'
+      + '<div class="compform">'
+      + '<div class="comprow"><label for="bPayAmt">Amount paid</label>'
+      + '<input class="compinput" id="bPayAmt" type="number" inputmode="decimal" step="0.01" value="'+(amt? amt.toFixed(2):'')+'"></div>'
+      + '<div class="comprow"><label for="bPayDate">Date paid</label>'
+      + '<input class="compinput" id="bPayDate" type="date" style="width:160px" value="'+bTodayKey()+'"></div>'
+      + '<input class="noteinput" id="bPayNote" type="text" maxlength="60" placeholder="Note (optional) \u2014 confirmation #, partial payment\u2026">'
+      + '<div class="compbtns">'
+      + '<button class="smallbtn primary" data-bpay="'+i.iid+'">\u2713 Mark paid</button>'
+      + '<button class="smallbtn" data-bedit="'+i.tid+'">Edit bill</button>'
+      + '</div></div></div>';
+  }
+  return html;
+}
+function bOrd(n){ const s=['th','st','nd','rd'], v=n%100; return s[(v-20)%10]||s[v]||s[0]; }
+
+function bRenderSummary(insts, y, m){
+  const el = document.getElementById('bSummary');
+  if (!insts.length){ el.classList.add('hidden'); return; }
+  el.classList.remove('hidden');
+  let due=0, paidSum=0;
+  const byCat = {};
+  for (const i of insts){
+    const a = bExpAmt(i);
+    due += a;
+    if (i.pay) paidSum += a;
+    byCat[i.t.cat] = (byCat[i.t.cat]||0) + a;
+  }
+  const debt = (byCat.card||0)+(byCat.loan||0);
+  const living = (byCat.housing||0)+(byCat.utility||0)+(byCat.other||0);
+  // Subscription rollup uses templates (monthly-equivalent), not just this month
+  let subMo = 0, subN = 0;
+  for (const t of Object.values(bstate.templates)){
+    if (!t.archived && t.cat==='sub'){ subMo += bMonthlyEq(t); subN++; }
+  }
+  const streak = bStreak();
+  const cells = [
+    ['Total this month','$'+money(due),'var(--text)'],
+    ['Paid so far','$'+money(paidSum),'var(--green)'],
+    ['Still to pay','$'+money(due-paidSum),(due-paidSum)>0?'var(--orange)':'var(--green)'],
+    ['Debt (cards + loans)','$'+money(debt),'var(--dim)'],
+    ['Living costs','$'+money(living),'var(--dim)'],
+    ['Subscriptions','$'+money(subMo)+'/mo','var(--dim)'],
+  ];
+  el.innerHTML = '<div class="eyebrow">'+BMONTHS[m]+' summary</div>'
+    + '<div class="grid2">'+cells.map(([l,v,c])=>'<div><div class="glabel">'+l+'</div><div class="gval" style="color:'+c+'">'+v+'</div></div>').join('')+'</div>'
+    + '<div class="projnote">'
+    + (subN>0 ? subN+' subscription'+(subN===1?'':'s')+' = $'+money(subMo*12)+'/yr \u2014 the quietest leak there is. ' : '')
+    + (streak>0 ? '\uD83D\uDD25 '+streak+' month'+(streak===1?'':'s')+' with everything paid on time.' : '')
+    + '</div>';
+}
+
+// Crunch radar: the next 4 weeks, each week's unpaid bills vs your average check
+function bRenderCrunch(){
+  const el = document.getElementById('bCrunch');
+  const avg = bAvgCheck();
+  if (avg<=0 || !Object.keys(bstate.templates).length){ el.classList.add('hidden'); return; }
+  const today = new Date(); today.setHours(0,0,0,0);
+  const horizon = new Date(today); horizon.setDate(horizon.getDate()+28);
+  const pool = [];
+  const seen = new Set();
+  for (let d = new Date(today); d <= horizon; d.setMonth(d.getMonth()+1)){
+    for (const i of bInstancesFor(d.getFullYear(), d.getMonth())){
+      if (!seen.has(i.iid)){ seen.add(i.iid); pool.push(i); }
+    }
+    d.setDate(1);
+  }
+  const rows = [];
+  for (let w=0; w<4; w++){
+    const s = new Date(today); s.setDate(s.getDate()+w*7);
+    const e = new Date(s); e.setDate(e.getDate()+6);
+    let sum = 0, n = 0;
+    for (const i of pool){
+      if (i.pay) continue;
+      if (i.due >= s && i.due <= e){ sum += bExpAmt(i); n++; }
+    }
+    rows.push({s, e, sum, n, tight: sum > avg*0.75, over: sum > avg});
+  }
+  if (!rows.some(r=>r.n>0)){ el.classList.add('hidden'); return; }
+  el.classList.remove('hidden');
+  el.innerHTML = '<div class="eyebrow">Next 4 weeks vs your \u2248$'+money(avg)+' check</div>'
+    + '<div class="compresult" style="margin-top:8px">'
+    + rows.map(r=>'<div class="bd-line"><span>'+bFmtDue(r.s)+' \u2013 '+bFmtDue(r.e)+(r.n?' \u00B7 '+r.n+' bill'+(r.n===1?'':'s'):'')+'</span>'
+      + '<span class="'+(r.over?'warn':r.tight?'b-creep':'good')+'">$'+money(r.sum)+(r.over?' \u26A0':'')+'</span></div>').join('')
+    + '</div>'
+    + (rows.some(r=>r.over) ? '<div class="projnote warn">\u26A0 A flagged week has more due than one check brings in \u2014 pay something early or move a due date if you can.</div>' : '');
+}
+
+// ============ MANAGE / EDITOR ============
+function bRenderManage(){
+  const el = document.getElementById('bManage');
+  el.classList.toggle('hidden', !bManageOpen);
+  if (!bManageOpen){ return; }
+  let html = '<div class="setrow"><label>Payday</label><div class="seg b-seg7" style="flex:1; max-width:270px">'
+    + BDOW.map((d,i)=>'<button class="segbtn'+(bstate.settings.paydayDow===i?' on':'')+'" data-bpd="'+i+'">'+d+'</button>').join('')
+    + '</div></div>'
+    + '<div class="setrow"><label>Check covers</label><div class="seg">'
+    + '<button class="segbtn'+((bstate.settings.payLag===undefined?1:bstate.settings.payLag)===1?' on':'')+'" data-blag="1">Last week</button>'
+    + '<button class="segbtn'+(bstate.settings.payLag===0?' on':'')+'" data-blag="0">This week</button>'
+    + '</div></div>'
+    + '<div class="setrow"><label>Bills color</label><div class="b-swatches">'
+    + Object.entries(BPALS).map(([k,p])=>{
+        const c = p.dark ? p.dark.acc : 'var(--orange)';
+        const on = (bstate.settings.palette||'ocean')===k;
+        return '<button class="b-swatch'+(on?' on':'')+'" data-bpal="'+k+'" style="background:'+c+'" aria-label="'+p.label+'" title="'+p.label+'"></button>';
+      }).join('')
+    + '</div></div>'
+    + '<div class="b-tmplsub" style="text-align:right; margin:-4px 2px 10px">'+ (BPALS[bstate.settings.palette||'ocean']||BPALS.ocean).label +' \u2014 only recolors the Bills tab</div>';
+
+  if (bEdit !== null){
+    html += bEditorHtml();
+  } else {
+    html += '<div class="compbtns" style="margin:10px 0"><button class="smallbtn primary" data-bnew="1">+ New bill</button></div>'
+      + '<div class="b-tmplsub" style="margin:2px 0 0">Quick add \u2014 tap one, then just enter the amount and due day:</div>'
+      + '<div class="b-quickrow">'
+      + BQUICK.map((q,ix)=>'<button class="b-quick" data-bquick="'+ix+'">'+bIconFor({name:q[0],cat:q[1]})+' '+q[0]+'</button>').join('')
+      + '</div>';
+  }
+
+  const tmpls = Object.entries(bstate.templates).filter(([,t])=>!t.archived)
+    .sort((a,b)=> a[1].name.localeCompare(b[1].name));
+  if (tmpls.length){
+    html += '<p class="setsection">Your bills \u2014 tap to edit. Amounts, due days, and past payments all stay editable.</p>';
+    html += tmpls.map(([id,t])=>{
+      const cat = BCATS[t.cat]||BCATS.other;
+      return '<button class="b-tmplrow" style="width:100%" data-bedit="'+id+'">'
+        + '<span style="text-align:left"><div class="b-tmplinfo">'+bIconFor(t)+' '+escapeHtml(t.name)+'</div>'
+        + '<div class="b-tmplsub">'+(BFREQS[t.freq]||t.freq)+' \u00B7 $'+money(t.amt||0)+(t.varies?' ~':'')+(t.autopay?' \u00B7 autopay':'')+'</div></span>'
+        + '<span class="b-amt" style="color:var(--dim)">\u203A</span></button>';
+    }).join('');
+  }
+  el.innerHTML = html;
+}
+
+function bBlankDraft(){
+  return { name:'', cat:'other', freq:'monthly', amt:'', dueDay:1, dueMonth:new Date().getMonth(),
+    anchor:bTodayKey(), autopay:false, varies:false, stmtDay:'', loanTotal:'', loanPaid:'', icon:'' };
+}
+function bEditorHtml(){
+  const d = bDraft;
+  const isNew = bEdit==='new';
+  const num = (id,label,val,ph)=>'<div class="comprow" style="margin-bottom:8px"><label for="'+id+'">'+label+'</label>'
+    + '<input class="compinput" id="'+id+'" type="number" inputmode="decimal" value="'+val+'" placeholder="'+(ph||'')+'"></div>';
+  let html = '<div class="b-editor">'
+    + '<div class="eyebrow" style="margin-bottom:10px">'+(isNew?'New bill':'Edit bill')+'</div>'
+    + '<div class="comprow" style="margin-bottom:8px"><label for="bfName">Name</label>'
+    + '<input class="compinput" id="bfName" type="text" style="width:180px; text-align:left" maxlength="40" placeholder="e.g. Rent, Visa, Netflix" value="'+escapeAttr(d.name)+'"></div>'
+    + '<div class="comprow" style="margin-bottom:8px"><label>Type</label><div class="seg" style="flex-wrap:wrap; justify-content:flex-end">'
+    + Object.entries(BCATS).map(([k,c])=>'<button class="segbtn'+(d.cat===k?' on':'')+'" data-bcat="'+k+'">'+c.ic+'</button>').join('')
+    + '</div></div>'
+    + '<div class="b-tmplsub" style="text-align:right; margin:-4px 0 8px">'+(BCATS[d.cat].label)+'</div>'
+    + '<div class="b-tmplsub" style="margin:0 0 4px">Icon \u2014 picked automatically from the name ('+bIconFor({name:d.name, cat:d.cat})+'), or choose:</div>'
+    + '<div class="b-iconrow">'
+    + '<button class="b-iconbtn auto'+(!d.icon?' on':'')+'" data-bicon="">Auto</button>'
+    + BICONS.map(ic=>'<button class="b-iconbtn'+(d.icon===ic?' on':'')+'" data-bicon="'+ic+'">'+ic+'</button>').join('')
+    + '</div>'
+    + '<div class="comprow" style="margin-bottom:8px"><label>Repeats</label><div class="seg" style="flex-wrap:wrap; justify-content:flex-end">'
+    + Object.entries(BFREQS).map(([k,l])=>'<button class="segbtn'+(d.freq===k?' on':'')+'" data-bfreq="'+k+'" style="font-size:11px">'+l+'</button>').join('')
+    + '</div></div>'
+    + num('bfAmt','Amount ($)', d.amt, '0.00');
+  if (d.freq==='monthly' || d.freq==='quarterly' || d.freq==='yearly')
+    html += num('bfDueDay','Due on day (1\u201331)', d.dueDay);
+  if (d.freq==='yearly' || d.freq==='quarterly')
+    html += '<div class="comprow" style="margin-bottom:8px"><label for="bfDueMonth">'+(d.freq==='yearly'?'Due month':'Anchor month')+'</label>'
+      + '<select class="compinput" id="bfDueMonth" style="width:130px">'
+      + BMONTHS.map((mo,i)=>'<option value="'+i+'"'+(d.dueMonth===i?' selected':'')+'>'+mo+'</option>').join('')+'</select></div>';
+  if (d.freq==='once' || d.freq==='weekly' || d.freq==='biweekly')
+    html += '<div class="comprow" style="margin-bottom:8px"><label for="bfAnchor">'+(d.freq==='once'?'Due date':'First due date')+'</label>'
+      + '<input class="compinput" id="bfAnchor" type="date" style="width:160px" value="'+d.anchor+'"></div>';
+  if (d.cat==='card')
+    html += num('bfStmt','Statement closes (day)', d.stmtDay, 'optional');
+  if (d.cat==='loan')
+    html += num('bfLoanTotal','Total # of payments', d.loanTotal, 'e.g. 24')
+         +  num('bfLoanPaid','Already paid before app', d.loanPaid, '0');
+  html += '<label class="skiprow"><input type="checkbox" id="bfVaries"'+(d.varies?' checked':'')+'> Amount varies (electric, gas\u2026) \u2014 estimate from history</label>'
+    + '<label class="skiprow" style="margin-bottom:8px"><input type="checkbox" id="bfAutopay"'+(d.autopay?' checked':'')+'> On autopay</label>'
+    + '<div class="compbtns">'
+    + '<button class="smallbtn primary" data-bsavetmpl="1">Save bill</button>'
+    + '<button class="smallbtn" data-bcanceltmpl="1">Cancel</button>'
+    + '</div>'
+    + (!isNew ? (bConfirmDel
+        ? '<div class="compbtns" style="margin-top:8px"><span class="confirmtext" style="align-self:center">Delete this bill? History is kept.</span>'
+          + '<button class="smallbtn danger" data-bconfdel="1">Delete</button><button class="smallbtn" data-bkeeptmpl="1">Keep</button></div>'
+        : '<div class="compbtns" style="margin-top:8px"><button class="smallbtn danger" data-bdel="1">Delete bill</button></div>') : '')
+    + '</div>';
+  return html;
+}
+function bReadDraftInputs(){
+  const g = id => document.getElementById(id);
+  if (g('bfName')) bDraft.name = g('bfName').value;
+  if (g('bfAmt')) bDraft.amt = g('bfAmt').value;
+  if (g('bfDueDay')) bDraft.dueDay = parseInt(g('bfDueDay').value)||1;
+  if (g('bfDueMonth')) bDraft.dueMonth = parseInt(g('bfDueMonth').value)||0;
+  if (g('bfAnchor') && g('bfAnchor').value) bDraft.anchor = g('bfAnchor').value;
+  if (g('bfStmt')) bDraft.stmtDay = g('bfStmt').value;
+  if (g('bfLoanTotal')) bDraft.loanTotal = g('bfLoanTotal').value;
+  if (g('bfLoanPaid')) bDraft.loanPaid = g('bfLoanPaid').value;
+  if (g('bfVaries')) bDraft.varies = g('bfVaries').checked;
+  if (g('bfAutopay')) bDraft.autopay = g('bfAutopay').checked;
+}
+
+// ============ BILLS EVENTS ============
+document.addEventListener('click', (e)=>{
+  const t = e.target.closest('button');
+  bUpdateStrip(); // hours are logged via buttons, so this keeps the Pay-screen strip live
+  if (!t) return;
+  const ds = t.dataset;
+
+  if (t.id==='bStsStrip'){
+    const tab = document.querySelector('[data-screen="bills"]');
+    if (tab) tab.click();
+    return;
+  }
+  if (ds.bshowpaid!==undefined){ bShowPaid = true; renderBills(); return; }
+  if (ds.bquick!==undefined){
+    const q = BQUICK[+ds.bquick];
+    if (q){
+      bEdit='new'; bDraft=bBlankDraft(); bConfirmDel=false;
+      bDraft.name=q[0]; bDraft.cat=q[1]; bDraft.freq=q[2];
+      renderBills();
+      const nm=document.getElementById('bfAmt'); if(nm) nm.focus();
+    }
+    return;
+  }
+
+  if (t.id==='bPrevMonth' || t.id==='bNextMonth'){
+    bMonth.setMonth(bMonth.getMonth() + (t.id==='bNextMonth'?1:-1));
+    bOpen=null; bShowPaid=false; renderBills(); return;
+  }
+  if (t.id==='bMonthHome'){
+    bMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+    bOpen=null; bShowPaid=false; renderBills(); return;
+  }
+  if (t.id==='bManageBtn'){ bManageOpen=!bManageOpen; if(!bManageOpen){bEdit=null;bDraft=null;bConfirmDel=false;} renderBills(); return; }
+  if (t.id==='bAddBill'){ bManageOpen=true; bEdit='new'; bDraft=bBlankDraft(); bConfirmDel=false; renderBills();
+    const mg=document.getElementById('bManage'); if(mg) mg.scrollIntoView({behavior:'smooth'}); return; }
+
+  if (ds.bsnapok!==undefined){ bstate.ui.snapDismissed=true; bsave(); renderBills(); return; }
+  if (ds.bopen!==undefined){ bOpen = (bOpen===ds.bopen? null : ds.bopen); renderBills(); return; }
+
+  if (ds.bpay!==undefined){
+    const amt = parseFloat(document.getElementById('bPayAmt').value)||0;
+    const date = document.getElementById('bPayDate').value || bTodayKey();
+    const note = (document.getElementById('bPayNote').value||'').trim();
+    if (amt>0){
+      bstate.payments[ds.bpay] = { amt, date, note };
+      bsave(); bOpen=null; renderBills();
+    }
+    return;
+  }
+  if (ds.bunpay!==undefined){ delete bstate.payments[ds.bunpay]; bsave(); renderBills(); return; }
+
+  if (ds.bpd!==undefined){ bstate.settings.paydayDow = +ds.bpd; bsave(); renderBills(); return; }
+  if (ds.bpal!==undefined){ bstate.settings.palette = ds.bpal; bsave(); bApplyPalette(); renderBills(); return; }
+  if (ds.blag!==undefined){ bstate.settings.payLag = +ds.blag; bsave(); renderBills(); return; }
+  if (ds.bnew!==undefined){ bEdit='new'; bDraft=bBlankDraft(); bConfirmDel=false; renderBills(); return; }
+  if (ds.bedit!==undefined){
+    const t0 = bstate.templates[ds.bedit];
+    if (t0){
+      bManageOpen = true; bEdit = ds.bedit; bConfirmDel=false;
+      bDraft = { ...bBlankDraft(), ...t0, amt:(t0.amt??'')+'', stmtDay:(t0.stmtDay??'')+'', loanTotal:(t0.loanTotal??'')+'', loanPaid:(t0.loanPaid??'')+'' };
+      renderBills();
+      const mg=document.getElementById('bManage'); if(mg) mg.scrollIntoView({behavior:'smooth'});
+    }
+    return;
+  }
+  if (ds.bcat!==undefined){ bReadDraftInputs(); bDraft.cat = ds.bcat; renderBills(); return; }
+  if (ds.bicon!==undefined){ bReadDraftInputs(); bDraft.icon = ds.bicon; renderBills(); return; }
+  if (ds.bfreq!==undefined){ bReadDraftInputs(); bDraft.freq = ds.bfreq; renderBills(); return; }
+  if (ds.bcanceltmpl!==undefined){ bEdit=null; bDraft=null; bConfirmDel=false; renderBills(); return; }
+  if (ds.bdel!==undefined){ bConfirmDel=true; renderBills(); return; }
+  if (ds.bkeeptmpl!==undefined){ bConfirmDel=false; renderBills(); return; }
+  if (ds.bconfdel!==undefined){
+    if (bEdit && bEdit!=='new' && bstate.templates[bEdit]){
+      bstate.templates[bEdit].archived = true; // soft delete — payment history stays
+      bsave();
+    }
+    bEdit=null; bDraft=null; bConfirmDel=false; renderBills(); return;
+  }
+  if (ds.bsavetmpl!==undefined){
+    bReadDraftInputs();
+    const d = bDraft;
+    if (!d.name.trim() || !(parseFloat(d.amt)>0)) return; // need a name and an amount
+    const tmpl = {
+      name: d.name.trim(), cat: d.cat, freq: d.freq,
+      amt: parseFloat(d.amt)||0,
+      dueDay: Math.min(31, Math.max(1, d.dueDay||1)),
+      dueMonth: d.dueMonth||0,
+      anchor: d.anchor,
+      autopay: !!d.autopay, varies: !!d.varies,
+      icon: d.icon||'',
+      stmtDay: parseInt(d.stmtDay)||0,
+      loanTotal: parseInt(d.loanTotal)||0,
+      loanPaid: parseInt(d.loanPaid)||0,
+    };
+    if (bEdit==='new'){
+      tmpl.startKey = bMonthKey(bMonth.getFullYear(), bMonth.getMonth());
+      bstate.templates[bNewId()] = tmpl;
+    } else {
+      const old = bstate.templates[bEdit]||{};
+      bstate.templates[bEdit] = { ...old, ...tmpl };
+    }
+    bsave(); bEdit=null; bDraft=null; renderBills(); return;
+  }
+});
+// Keep editor state while typing (so tapping a seg button doesn't wipe inputs)
+document.addEventListener('input', (e)=>{
+  if (bDraft && e.target.id && e.target.id.startsWith('bf')) bReadDraftInputs();
+});
+
+applyTheme();
+bApplyPalette();
+bUpdateStrip();
+// Auto-open today's card when viewing the current week (skip Sunday if it's toggled off)
+if (toKey(weekEndSat(new Date())) === toKey(weekEnd)){
+  const td = new Date().getDay();
+  openDay = (td===0 && !state.settings.workSundays) ? null : td;
+}
+renderWeek();
+
+// Offline support — cache the app so it loads with no signal
+if ('serviceWorker' in navigator){
+  navigator.serviceWorker.register('./sw.js').catch(()=>{});
+}
+
+</script>
+</body>
+</html>
