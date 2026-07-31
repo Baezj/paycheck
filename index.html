@@ -359,6 +359,7 @@
     <div class="panel" id="bStsPanel"></div>
     <div id="bList"></div>
     <button class="repeatbar" id="bAddBill">+ Add a bill</button>
+    <div id="bEditorBox"></div>
     <div class="panel hidden" id="bSummary"></div>
     <div class="panel hidden" id="bCrunch"></div>
     <button class="sharebar" id="bManageBtn">&#9881; Manage bills &amp; payday</button>
@@ -1647,6 +1648,7 @@ function renderBills(){
 
   bRenderSummary(insts, y, m);
   bRenderCrunch();
+  document.getElementById('bEditorBox').innerHTML = (bEdit!==null && bDraft) ? bEditorHtml() : '';
   bRenderManage();
 }
 function isThisMonthOrPast(y,m){
@@ -1876,9 +1878,7 @@ function bRenderManage(){
     + '</div></div>'
     + '<div class="b-tmplsub" style="text-align:right; margin:-4px 2px 10px">'+ (BPALS[bstate.settings.palette||'ocean']||BPALS.ocean).label +' \u2014 only recolors the Bills tab</div>';
 
-  if (bEdit !== null){
-    html += bEditorHtml();
-  } else {
+  if (bEdit === null){
     html += '<div class="compbtns" style="margin:10px 0"><button class="smallbtn primary" data-bnew="1">+ New bill</button></div>'
       + '<div class="b-tmplsub" style="margin:2px 0 0">Quick add \u2014 tap one, then just enter the amount and due day:</div>'
       + '<div class="b-quickrow">'
@@ -1987,6 +1987,7 @@ document.addEventListener('click', (e)=>{
       bEdit='new'; bDraft=bBlankDraft(); bConfirmDel=false;
       bDraft.name=q[0]; bDraft.cat=q[1]; bDraft.freq=q[2];
       renderBills();
+      const box=document.getElementById('bEditorBox'); if(box) box.scrollIntoView({behavior:'smooth', block:'start'});
       const nm=document.getElementById('bfAmt'); if(nm) nm.focus();
     }
     return;
@@ -2000,9 +2001,13 @@ document.addEventListener('click', (e)=>{
     bMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
     bOpen=null; bShowPaid=false; renderBills(); return;
   }
-  if (t.id==='bManageBtn'){ bManageOpen=!bManageOpen; if(!bManageOpen){bEdit=null;bDraft=null;bConfirmDel=false;} renderBills(); return; }
-  if (t.id==='bAddBill'){ bManageOpen=true; bEdit='new'; bDraft=bBlankDraft(); bConfirmDel=false; renderBills();
-    const mg=document.getElementById('bManage'); if(mg) mg.scrollIntoView({behavior:'smooth'}); return; }
+  if (t.id==='bManageBtn'){ bManageOpen=!bManageOpen; if(!bManageOpen){bConfirmDel=false;} renderBills(); return; }
+  if (t.id==='bAddBill'){
+    if (bEdit!==null){ bEdit=null; bDraft=null; renderBills(); return; } // tap again to close
+    bEdit='new'; bDraft=bBlankDraft(); bConfirmDel=false; renderBills();
+    const nm=document.getElementById('bfName'); if(nm) nm.focus();
+    return;
+  }
 
   if (ds.bsnapok!==undefined){ bstate.ui.snapDismissed=true; bsave(); renderBills(); return; }
   if (ds.bopen!==undefined){ bOpen = (bOpen===ds.bopen? null : ds.bopen); renderBills(); return; }
@@ -2026,10 +2031,10 @@ document.addEventListener('click', (e)=>{
   if (ds.bedit!==undefined){
     const t0 = bstate.templates[ds.bedit];
     if (t0){
-      bManageOpen = true; bEdit = ds.bedit; bConfirmDel=false;
+      bEdit = ds.bedit; bConfirmDel=false;
       bDraft = { ...bBlankDraft(), ...t0, amt:(t0.amt??'')+'', stmtDay:(t0.stmtDay??'')+'', loanTotal:(t0.loanTotal??'')+'', loanPaid:(t0.loanPaid??'')+'' };
       renderBills();
-      const mg=document.getElementById('bManage'); if(mg) mg.scrollIntoView({behavior:'smooth'});
+      const box=document.getElementById('bEditorBox'); if(box) box.scrollIntoView({behavior:'smooth', block:'start'});
     }
     return;
   }
