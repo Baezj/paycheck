@@ -1347,7 +1347,7 @@ const BCATS = {
   housing:{ic:'\uD83C\uDFE0', label:'Housing'},
   utility:{ic:'\uD83D\uDCA1', label:'Utility'},
   card:{ic:'\uD83D\uDCB3', label:'Credit card'},
-  loan:{ic:'\uD83C\uDFE6', label:'Loan / Klarna'},
+  loan:{ic:'\uD83C\uDFE6', label:'Loan'},
   sub:{ic:'\uD83D\uDCFA', label:'Subscription'},
   other:{ic:'\uD83D\uDCC4', label:'Other'},
 };
@@ -1390,6 +1390,11 @@ const BCAT_KEYS = [
   [/electric|power|\bgas\b|water|sewer|internet|wifi|phone|mobile|utility|comcast|xfinity|fios|verizon|t-?mobile|at&t|\batt\b|national grid|eversource/, 'utility'],
   [/netflix|hulu|disney|youtube|hbo|\bmax\b|peacock|paramount|spotify|pandora|subscription|prime|apple one|icloud|gym|planet fitness|crunch/, 'sub'],
 ];
+const BNPL_RE = /klarna|afterpay|affirm|sezzle|\bzip\b|paypal pay|pay in 4/i;
+function bCatLabel(t){
+  if (t.cat==='loan' && BNPL_RE.test(t.name||'')) return 'Pay plan';
+  return (BCATS[t.cat]||BCATS.other).label;
+}
 function bCatFor(name){
   const n = (name||'').toLowerCase();
   for (const [re, cat] of BCAT_KEYS){ if (re.test(n)) return cat; }
@@ -1981,8 +1986,7 @@ function bRow(i, todayK){
   const card = document.createElement('div');
   card.className = 'day'+(open?' open':'')+(isOver?' b-over':'')+(settled && !conf?' b-paidrow':'')
     +(conf && conf.mode==='del'?' confirm':'')+(conf && conf.mode==='menu'?' b-menu':'');
-  const cat = BCATS[i.t.cat]||BCATS.other;
-  let sub = bIconFor(i.t)+' '+cat.label + (i.t.autopay ? ' \u00B7 autopay' : '');
+  let sub = bIconFor(i.t)+' '+bCatLabel(i.t) + (i.t.autopay ? ' \u00B7 autopay' : '');
   if (i.t.cat==='loan' && i.t.loanTotal>0){
     const pr = bLoanProg(i.tid, i.t);
     sub += ' \u00B7 '+pr.made+'/'+pr.total+' paid';
