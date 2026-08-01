@@ -1851,10 +1851,11 @@ function bRenderSts(){
       const paid = bMonthPaid(bMonthKey(y,m));
       const kept = earned.sum - paid.total;
       const yTag = y!==nowD.getFullYear() ? ' '+y : '';
+      const kv = '<span class="b-togval">'+(stsOpen?'\u25BE':'view \u25B8')+'</span>';
       el.innerHTML = '<button class="b-paneltog" data-btogsts="1">'
-        + '<span class="eyebrow">'+BMONTHS[m]+yTag+' result</span>'+tog+'</button>'
-        + '<div class="b-sts '+(kept>=0?'good':'bad')+'">'+(kept<0?'\u2212':'')+'$'+money(Math.abs(kept))+'</div>'
-        + (stsOpen ? '<div class="b-stsline">Earned ('+earned.n+' check'+(earned.n===1?'':'s')+', from your logged weeks): <b>$'+money(earned.sum)+'</b>'
+        + '<span class="eyebrow">'+BMONTHS[m]+yTag+' result \u00B7 kept</span>'+kv+'</button>'
+        + (stsOpen ? '<div class="b-sts '+(kept>=0?'good':'bad')+'">'+(kept<0?'\u2212':'')+'$'+money(Math.abs(kept))+'</div>'
+          + '<div class="b-stsline">Earned ('+earned.n+' check'+(earned.n===1?'':'s')+', from your logged weeks): <b>$'+money(earned.sum)+'</b>'
           + '<br>Bills paid: <b>\u2212$'+money(paid.bills)+'</b>'
           + (paid.park>0 ? '<br>Parking: <b>\u2212$'+money(paid.park)+'</b>' : '')
           + '</div>' : '');
@@ -1870,10 +1871,11 @@ function bRenderSts(){
       const gasEst = (bstate.settings.gasWeekly||0) * checks;
       const left = income - billsDue - parkEst - gasEst;
       const yTag = y!==nowD.getFullYear() ? ' '+y : '';
+      const lv = '<span class="b-togval">'+(stsOpen?'\u25BE':'view \u25B8')+'</span>';
       el.innerHTML = '<button class="b-paneltog" data-btogsts="1">'
-        + '<span class="eyebrow">'+BMONTHS[m]+yTag+' outlook</span>'+tog+'</button>'
-        + '<div class="b-sts '+(left>=0?'good':'bad')+'">'+(left<0?'\u2212':'')+'$'+money(Math.abs(left))+'</div>'
-        + (stsOpen ? '<div class="b-stsline">Expected pay ('+checks+' payday'+(checks===1?'':'s')+' \u00D7 $'+money(avg)+' avg): <b>$'+money(income)+'</b>'
+        + '<span class="eyebrow">'+BMONTHS[m]+yTag+' outlook</span>'+lv+'</button>'
+        + (stsOpen ? '<div class="b-sts '+(left>=0?'good':'bad')+'">'+(left<0?'\u2212':'')+'$'+money(Math.abs(left))+'</div>'
+        + '<div class="b-stsline">Expected pay ('+checks+' payday'+(checks===1?'':'s')+' \u00D7 $'+money(avg)+' avg): <b>$'+money(income)+'</b>'
           + '<br>Bills that month: <b>\u2212$'+money(billsDue)+'</b>'
           + (parkEst>0 ? '<br>Parking est. ('+bWeekdaysInMonth(y,m)+' workdays \u00D7 $'+money(dpark)+'): <b>\u2212$'+money(parkEst)+'</b>' : '')
           + (gasEst>0 ? '<br>Gas est. ('+checks+' wk \u00D7 $'+money(bstate.settings.gasWeekly)+'): <b>\u2212$'+money(gasEst)+'</b>' : '')
@@ -1888,13 +1890,14 @@ function bRenderSts(){
     return;
   }
   const winEnd = new Date(p.pd2); winEnd.setDate(winEnd.getDate()-1);
+  const sv = '<span class="b-togval">'+(stsOpen?'\u25BE':'view \u25B8')+'</span>'; // no amount while folded — nothing for shoulder-surfers
   el.innerHTML = '<button class="b-paneltog" data-btogsts="1">'
     + '<span class="eyebrow">Remaining \u00B7 '+BDOW[p.pd.getDay()]+' '+bFmtDue(p.pd)+' check</span>'
-    + '<span class="b-togval">'+(stsOpen?'\u25BE':'the math \u25B8')+'</span></button>'
-    + '<div class="b-sts '+(p.sts>=0?'good':'bad')+'">'+(p.sts<0?'\u2212':'')+'$'+money(Math.abs(p.sts))+'</div>'
-    + (!stsOpen ? (p.sts<0 ? '<div class="b-stsline"><span class="warn">\u26A0 This check can\u2019t cover its stretch \u2014 tap for the math.</span></div>'
-      : '<div class="b-stsline">What\u2019s left after this check covers everything through '+bFmtDue(winEnd)+'.</div>')
-    : '<div class="b-stsline">Next check ('+p.ec.basis+'): <b>$'+money(p.ec.amt)+'</b>'
+    + sv + '</button>'
+    + (!stsOpen ? ''
+    : '<div class="b-sts '+(p.sts>=0?'good':'bad')+'">'+(p.sts<0?'\u2212':'')+'$'+money(Math.abs(p.sts))+'</div>'
+    + '<div class="b-stsline">What\u2019s left after this check covers everything through '+bFmtDue(winEnd)+'.'
+    + '<br>Next check ('+p.ec.basis+'): <b>$'+money(p.ec.amt)+'</b>'
     + (p.overSum>0 ? '<br><span class="warn">Overdue to catch up: \u2212$'+money(p.overSum)+' ('+p.overN+' bill'+(p.overN===1?'':'s')+')</span>' : '')
     + '<br>Bills it must cover (through '+bFmtDue(winEnd)+'): <b>\u2212$'+money(p.dueSum)+'</b>'+(p.dueN? ' ('+p.dueN+' bill'+(p.dueN===1?'':'s')+')':'')
     + (p.preN>0 ? '<br><span class="warn">\u26A0 $'+money(p.preSum)+' of that is due before the check lands \u2014 needs cash on hand.</span>' : '')
@@ -1990,8 +1993,7 @@ function bUpdateStrip(){
   if (!Object.keys(bstate.templates).length){ el.classList.add('hidden'); return; }
   const p = bStsParts();
   el.classList.remove('hidden');
-  el.innerHTML = '\uD83D\uDCB5 Remaining from '+BDOW[p.pd.getDay()]+' '+bFmtDue(p.pd)+' check: '
-    + '<b style="color:var(--'+(p.sts>=0?'green':'red')+')">'+(p.sts<0?'\u2212':'')+'$'+money(Math.abs(p.sts))+'</b> \u203A';
+  el.innerHTML = '\uD83D\uDCB5 Remaining from '+BDOW[p.pd.getDay()]+' '+bFmtDue(p.pd)+' check \u203A';
 }
 
 // ---- Year rollup: cash out by the month you actually paid it ----
