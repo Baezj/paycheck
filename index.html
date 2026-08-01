@@ -1785,8 +1785,9 @@ function bRenderSts(){
       const earned = bEarnedInMonth(y,m);
       const paid = bMonthPaid(bMonthKey(y,m));
       const kept = earned.sum - paid.total;
+      const yTag = y!==nowD.getFullYear() ? ' '+y : '';
       el.innerHTML = '<button class="b-paneltog" data-btogsts="1">'
-        + '<span class="eyebrow">'+BMONTHS[m]+' '+y+' result \u2014 what you kept</span>'+tog+'</button>'
+        + '<span class="eyebrow">'+BMONTHS[m]+yTag+' result</span>'+tog+'</button>'
         + '<div class="b-sts '+(kept>=0?'good':'bad')+'">'+(kept<0?'\u2212':'')+'$'+money(Math.abs(kept))+'</div>'
         + (stsOpen ? '<div class="b-stsline">Earned ('+earned.n+' check'+(earned.n===1?'':'s')+', from your logged weeks): <b>$'+money(earned.sum)+'</b>'
           + '<br>Bills paid: <b>\u2212$'+money(paid.bills)+'</b>'
@@ -1802,13 +1803,14 @@ function bRenderSts(){
       const dpark = bParkAvg();
       const parkEst = dpark>0 ? dpark * bWeekdaysInMonth(y,m) : 0;
       const left = income - billsDue - parkEst;
+      const yTag = y!==nowD.getFullYear() ? ' '+y : '';
       el.innerHTML = '<button class="b-paneltog" data-btogsts="1">'
-        + '<span class="eyebrow">'+BMONTHS[m]+' '+y+' outlook \u2014 projected leftover</span>'+tog+'</button>'
+        + '<span class="eyebrow">'+BMONTHS[m]+yTag+' outlook</span>'+tog+'</button>'
         + '<div class="b-sts '+(left>=0?'good':'bad')+'">'+(left<0?'\u2212':'')+'$'+money(Math.abs(left))+'</div>'
         + (stsOpen ? '<div class="b-stsline">Expected pay ('+checks+' payday'+(checks===1?'':'s')+' \u00D7 $'+money(avg)+' avg): <b>$'+money(income)+'</b>'
           + '<br>Bills that month: <b>\u2212$'+money(billsDue)+'</b>'
           + (parkEst>0 ? '<br>Parking est. ('+bWeekdaysInMonth(y,m)+' workdays \u00D7 $'+money(dpark)+'): <b>\u2212$'+money(parkEst)+'</b>' : '')
-          + '<br><span class="dimtext">Estimates only \u2014 firm up as weeks get logged.</span></div>' : '');
+          + '<br><span class="dimtext">Projected leftover \u2014 estimates firm up as bills and weeks get logged.</span></div>' : '');
     }
     return;
   }
