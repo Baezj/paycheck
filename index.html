@@ -1945,17 +1945,22 @@ function bRenderPark(){
   }
   el.classList.remove('hidden');
   const y = bMonth.getFullYear(), m = bMonth.getMonth();
+  const nowD = new Date();
+  const viewingThisMonth = (y===nowD.getFullYear() && m===nowD.getMonth());
   const pm = bParkMonth(y, m);
   const todayLogged = bstate.parking[bTodayKey()] !== undefined;
-  const expanded = bParkExpanded === true || !todayLogged || !!bParkSel;
+  // auto-open only applies to the current month; other months open by tap only
+  const expanded = bParkExpanded === true || !!bParkSel || (viewingThisMonth && !todayLogged);
   if (!expanded){
-    // today is handled — one quiet line; tap to reopen for edits or backfill
     el.innerHTML = '<button class="b-paneltog" data-bparkexpand="1">'
-      + '<span class="eyebrow">\uD83C\uDD7F\uFE0F Parking today \u2014 <span class="good">\u2713 $'+money(bstate.parking[bTodayKey()])+'</span></span>'
+      + (viewingThisMonth
+        ? '<span class="eyebrow">\uD83C\uDD7F\uFE0F Parking today \u2014 <span class="good">\u2713 $'+money(bstate.parking[bTodayKey()])+'</span></span>'
+        : '<span class="eyebrow">\uD83C\uDD7F\uFE0F Parking</span>')
       + '<span class="b-togval">'+BMONTHS[m]+': $'+money(pm.sum)+' ('+pm.days+'d) \u25B8</span></button>';
     return;
   }
-  const selDate = bParkSel || bTodayKey();
+  // in another month, default the picker into that month so backfills land where you're looking
+  const selDate = bParkSel || (viewingThisMonth ? bTodayKey() : bMonthKey(y,m)+'-01');
   const cur = bstate.parking[selDate];
   const chips = [0, 19, 21, 24, 25, 27, 28]; // the actual rates at his lots — $0 for no-park days
   const worked = bDaysWorkedIn(y, m);
