@@ -1930,7 +1930,8 @@ function bRenderYear(){
 }
 
 // ---- Parking: one tap a day, real totals, self-learning average ----
-let bParkSel = null; // date being logged (defaults to today)
+let bParkSel = null;      // date being logged (defaults to today)
+let bParkExpanded = null; // true = user reopened the panel; null = auto (open only until today is logged)
 function bRenderPark(){
   const el = document.getElementById('bParkPanel');
   const entries = Object.keys(bstate.parking).length;
@@ -1943,11 +1944,20 @@ function bRenderPark(){
     return;
   }
   el.classList.remove('hidden');
+  const y = bMonth.getFullYear(), m = bMonth.getMonth();
+  const pm = bParkMonth(y, m);
+  const todayLogged = bstate.parking[bTodayKey()] !== undefined;
+  const expanded = bParkExpanded === true || !todayLogged || !!bParkSel;
+  if (!expanded){
+    // today is handled — one quiet line; tap to reopen for edits or backfill
+    el.innerHTML = '<button class="b-paneltog" data-bparkexpand="1">'
+      + '<span class="eyebrow">\uD83C\uDD7F\uFE0F Parking today \u2014 <span class="good">\u2713 $'+money(bstate.parking[bTodayKey()])+'</span></span>'
+      + '<span class="b-togval">'+BMONTHS[m]+': $'+money(pm.sum)+' ('+pm.days+'d) \u25B8</span></button>';
+    return;
+  }
   const selDate = bParkSel || bTodayKey();
   const cur = bstate.parking[selDate];
   const chips = [0, 19, 21, 24, 25, 27, 28]; // the actual rates at his lots — $0 for no-park days
-  const y = bMonth.getFullYear(), m = bMonth.getMonth();
-  const pm = bParkMonth(y, m);
   const worked = bDaysWorkedIn(y, m);
   const missing = Math.max(0, worked - pm.days);
   const isToday = selDate === bTodayKey();
@@ -2401,24 +2411,31 @@ document.addEventListener('click', (e)=>{
     bstate.settings.dailyCost = bstate.settings.dailyCost || 21; // wakes the panel; real entries take over from here
     bsave(); renderBills(); return;
   }
+  if (ds.bparkexpand!==undefined){ bParkExpanded = true; renderBills(); return; }
   if (ds.bpark!==undefined){
     const dEl = document.getElementById('bParkDate');
     const key = (dEl && dEl.value) || bTodayKey();
     bstate.parking[key] = parseFloat(ds.bpark)||0;
-    bsave(); bParkSel=null; renderBills(); return;
+    bsave(); bParkSel=null; bParkExpanded=null; renderBills(); return; // collapse = saved
   }
   if (ds.bparksave!==undefined){
     const amt = parseFloat(document.getElementById('bParkOther').value);
     const dEl = document.getElementById('bParkDate');
     const key = (dEl && dEl.value) || bTodayKey();
-    if (!isNaN(amt) && amt>=0){ bstate.parking[key] = amt; bsave(); bParkSel=null; renderBills(); }
+    if (!isNaN(amt) && amt>=0){
+      bstate.parking[key] = amt; bsave();
+      bParkSel=null; bParkExpanded=null; renderBills();
+    } else if (bstate.parking[key]!==undefined){
+      // empty box but the day is already logged — Save just closes the panel
+      bParkSel=null; bParkExpanded=null; renderBills();
+    }
     return;
   }
   if (ds.bparkdel!==undefined){
     const dEl = document.getElementById('bParkDate');
     const key = (dEl && dEl.value) || bTodayKey();
     delete bstate.parking[key];
-    bsave(); bParkSel=null; renderBills(); return;
+    bsave(); bParkSel=null; bParkExpanded=null; renderBills(); return;
   }
   if (ds.bquick!==undefined){
     const q = BQUICK[+ds.bquick];
@@ -2434,11 +2451,11 @@ document.addEventListener('click', (e)=>{
 
   if (t.id==='bPrevMonth' || t.id==='bNextMonth'){
     bMonth.setMonth(bMonth.getMonth() + (t.id==='bNextMonth'?1:-1));
-    bOpen=null; bConfirm=null; bShowPaid=false; bShowSubs=false; renderBills(); return;
+    bOpen=null; bConfirm=null; bShowPaid=false; bShowSubs=false; bParkExpanded=null; renderBills(); return;
   }
   if (t.id==='bMonthHome'){
     bMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
-    bOpen=null; bConfirm=null; bShowPaid=false; bShowSubs=false; renderBills(); return;
+    bOpen=null; bConfirm=null; bShowPaid=false; bShowSubs=false; bParkExpanded=null; renderBills(); return;
   }
   if (t.id==='bManageBtn'){ bManageOpen=!bManageOpen; if(!bManageOpen){bConfirmDel=false;} renderBills(); return; }
   if (t.id==='bAddBill'){
