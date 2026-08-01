@@ -1772,13 +1772,50 @@ function bRenderSnapBanner(){
 
 function bRenderSts(){
   const el = document.getElementById('bStsPanel');
+  const y = bMonth.getFullYear(), m = bMonth.getMonth();
+  const nowD = new Date();
+  const stsOpen = !!bstate.ui.stsOpen;
+  const tog = '<span class="b-togval">'+(stsOpen?'\u25BE':'the math \u25B8')+'</span>';
+  if (y!==nowD.getFullYear() || m!==nowD.getMonth()){
+    const isPast = y < nowD.getFullYear() || (y===nowD.getFullYear() && m < nowD.getMonth());
+    if (isPast){
+      // RESULT: what actually happened
+      const earned = bEarnedInMonth(y,m);
+      const paid = bMonthPaid(bMonthKey(y,m));
+      const kept = earned.sum - paid.total;
+      el.innerHTML = '<button class="b-paneltog" data-btogsts="1">'
+        + '<span class="eyebrow">'+BMONTHS[m]+' '+y+' result \u2014 what you kept</span>'+tog+'</button>'
+        + '<div class="b-sts '+(kept>=0?'good':'bad')+'">'+(kept<0?'\u2212':'')+'$'+money(Math.abs(kept))+'</div>'
+        + (stsOpen ? '<div class="b-stsline">Earned ('+earned.n+' check'+(earned.n===1?'':'s')+', from your logged weeks): <b>$'+money(earned.sum)+'</b>'
+          + '<br>Bills paid: <b>\u2212$'+money(paid.bills)+'</b>'
+          + (paid.park>0 ? '<br>Parking: <b>\u2212$'+money(paid.park)+'</b>' : '')
+          + '</div>' : '');
+    } else {
+      // OUTLOOK: projection for a future month
+      const checks = bPaydaysInMonth(y,m);
+      const avg = bAvgCheck();
+      const income = checks * avg;
+      const insts = bInstancesFor(y,m);
+      let billsDue = 0; for (const i of insts) billsDue += bExpAmt(i);
+      const dpark = bParkAvg();
+      const parkEst = dpark>0 ? dpark * bWeekdaysInMonth(y,m) : 0;
+      const left = income - billsDue - parkEst;
+      el.innerHTML = '<button class="b-paneltog" data-btogsts="1">'
+        + '<span class="eyebrow">'+BMONTHS[m]+' '+y+' outlook \u2014 projected leftover</span>'+tog+'</button>'
+        + '<div class="b-sts '+(left>=0?'good':'bad')+'">'+(left<0?'\u2212':'')+'$'+money(Math.abs(left))+'</div>'
+        + (stsOpen ? '<div class="b-stsline">Expected pay ('+checks+' payday'+(checks===1?'':'s')+' \u00D7 $'+money(avg)+' avg): <b>$'+money(income)+'</b>'
+          + '<br>Bills that month: <b>\u2212$'+money(billsDue)+'</b>'
+          + (parkEst>0 ? '<br>Parking est. ('+bWeekdaysInMonth(y,m)+' workdays \u00D7 $'+money(dpark)+'): <b>\u2212$'+money(parkEst)+'</b>' : '')
+          + '<br><span class="dimtext">Estimates only \u2014 firm up as weeks get logged.</span></div>' : '');
+    }
+    return;
+  }
   const p = bStsParts();
   if (p.ec.amt<=0 && !Object.keys(bstate.templates).length){
     el.innerHTML = '<div class="eyebrow">Safe to spend</div>'
       + '<div class="b-stsline">Add your bills below and this becomes your cash-flow headline: expected check \u2212 bills due before payday \u2212 savings goal.</div>';
     return;
   }
-  const stsOpen = !!bstate.ui.stsOpen;
   el.innerHTML = '<button class="b-paneltog" data-btogsts="1">'
     + '<span class="eyebrow">Safe to spend until payday ('+BDOW[bstate.settings.paydayDow]+' '+bFmtDue(p.pd)+')</span>'
     + '<span class="b-togval">'+(stsOpen?'\u25BE':'the math \u25B8')+'</span></button>'
@@ -1843,6 +1880,28 @@ function bStsParts(){
   const work = dc * wd;
   return { ec, overSum:w.overSum, overN:w.overN, dueSum:w.dueSum, dueN:w.dueN, pd:w.pd,
            sg, dc, wd, work, sts: ec.amt - w.overSum - w.dueSum - sg - work };
+}
+// Scrolled to another month? The headline changes tense with you.
+function bPaydaysInMonth(y,m){
+  let n=0;
+  for (let d=1; d<=bDaysIn(y,m); d++) if (new Date(y,m,d).getDay()===bstate.settings.paydayDow) n++;
+  return n;
+}
+function bWeekdaysInMonth(y,m){
+  let n=0;
+  for (let d=1; d<=bDaysIn(y,m); d++){ const dw=new Date(y,m,d).getDay(); if (dw>=1&&dw<=5) n++; }
+  return n;
+}
+function bEarnedInMonth(y,m){ // checks from weeks ending in that month, real hours
+  let sum=0, n=0;
+  for (const [k,v] of Object.entries(state.weeks)){
+    const we = fromKey(k);
+    if (we.getFullYear()!==y || we.getMonth()!==m) continue;
+    if (!(v.hours||[]).some(h=>h>0)) continue;
+    sum += (v.actual && v.actual.net>0) ? v.actual.net : calcPay(v.hours||[], ratesForW(v)).net;
+    n++;
+  }
+  return { sum, n };
 }
 
 // The same headline, mirrored onto the Pay screen where hours get logged daily.
