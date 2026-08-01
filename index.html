@@ -199,6 +199,11 @@
   .b-paneltog{width:100%; display:flex; justify-content:space-between; align-items:center; background:none; padding:0;}
   .b-togval{font-family:ui-monospace,Menlo,monospace; font-size:12px; color:var(--dim); font-variant-numeric:tabular-nums;}
   .b-togval.warn{color:var(--red);}
+  .b-daystrip{display:flex; gap:5px;}
+  .b-daybtn{flex:1; padding:7px 0 6px; border-radius:9px; background:var(--up); border:1px solid var(--line); font-family:ui-monospace,Menlo,monospace; font-size:10.5px; color:var(--dim); line-height:1.4; text-align:center;}
+  .b-daybtn.on{border-color:var(--orange); color:var(--text);}
+  .b-dayamt{display:block; font-size:11px; font-weight:700; color:var(--text); font-variant-numeric:tabular-nums;}
+  .b-dayamt.good{color:var(--green);}
   .b-iconrow{display:flex; flex-wrap:wrap; gap:6px; margin:2px 0 10px;}
   .b-iconbtn{width:40px; height:40px; border-radius:9px; background:var(--up); border:1px solid var(--line); font-size:19px; padding:0;}
   .b-iconbtn.on{border-color:var(--orange); background:var(--orange); }
@@ -1294,7 +1299,7 @@ document.getElementById('payCard').addEventListener('click', (e)=>{
 // the pay data ('paytracker:v1') — it only reads it for cash flow.
 // ==================================================================
 const BKEY = 'billtracker:v1';
-const BDEF = { templates:{}, payments:{}, overrides:{}, parking:{}, settings:{ paydayDow:5, palette:'ocean', payLag:1, dailyCost:0 }, ui:{ snapDismissed:false, lastTab:'week', sumOpen:false, crunchOpen:false, yearOpen:false, stsOpen:false, backupSnooze:null } };
+const BDEF = { templates:{}, payments:{}, overrides:{}, parking:{}, settings:{ paydayDow:5, palette:'ocean', payLag:1, dailyCost:0, parkSun:0 }, ui:{ snapDismissed:false, lastTab:'week', sumOpen:false, crunchOpen:false, yearOpen:false, stsOpen:false, backupSnooze:null } };
 let bstate = JSON.parse(JSON.stringify(BDEF));
 try {
   const bsaved = JSON.parse(localStorage.getItem(BKEY));
@@ -1929,14 +1934,40 @@ function bRenderYear(){
     + '<div class="projnote">Counted by the month you paid, not the month it was due \u2014 same way your pay history counts money in. Tap a bar to open that month.</div>';
 }
 
-// ---- Parking: one tap a day, real totals, self-learning average ----
-let bParkSel = null;      // date being logged (defaults to today)
-let bParkExpanded = null; // true = user reopened the panel; null = auto (open only until today is logged)
+// ---- Parking: the week as day cards, same body language as the Pay tab ----
+let bParkSel = null;          // selected day key (its editor is open)
+let bParkExpanded = false;    // whole panel open?
+let bParkWeekStart = null;    // Monday of the viewed week ('YYYY-MM-DD')
+function bMonday(d){
+  const x = new Date(d); x.setHours(0,0,0,0);
+  x.setDate(x.getDate() - ((x.getDay()+6)%7)); // back to Monday
+  return x;
+}
+function bParkKey(){ return bParkSel || bTodayKey(); }
+// After a save: hop to the next unlogged day in the viewed week so a whole
+// week of catch-up is just tap-tap, tap-tap. Editor closes when week's done.
+function bParkAdvance(savedKey){
+  const days = bParkWeekDays();
+  const next = days.find(k=>k>savedKey && bstate.parking[k]===undefined)
+            || days.find(k=>bstate.parking[k]===undefined);
+  bParkSel = next || null;
+}
+function bParkWeekDays(){
+  const mon = bParkWeekStart ? fromKey(bParkWeekStart) : bMonday(new Date());
+  const out = [];
+  const showSun = !!bstate.settings.parkSun;
+  for (let i=0;i<7;i++){
+    const d = new Date(mon); d.setDate(d.getDate()+i);
+    const k = toKey(d);
+    if (d.getDay()===0 && !showSun && bstate.parking[k]===undefined) continue; // Sundays hidden unless enabled or logged
+    out.push(k);
+  }
+  return out;
+}
 function bRenderPark(){
   const el = document.getElementById('bParkPanel');
   const entries = Object.keys(bstate.parking).length;
   if (!entries && !(bstate.settings.dailyCost>0)){
-    // feature dormant until first use — one quiet line to switch it on
     el.classList.remove('hidden');
     el.innerHTML = '<button class="b-paneltog" data-bparkstart="1">'
       + '<span class="eyebrow">\uD83C\uDD7F\uFE0F Parking</span>'
@@ -1945,44 +1976,63 @@ function bRenderPark(){
   }
   el.classList.remove('hidden');
   const y = bMonth.getFullYear(), m = bMonth.getMonth();
-  const nowD = new Date();
-  const viewingThisMonth = (y===nowD.getFullYear() && m===nowD.getMonth());
   const pm = bParkMonth(y, m);
-  const todayLogged = bstate.parking[bTodayKey()] !== undefined;
-  // auto-open only applies to the current month; other months open by tap only
-  const expanded = bParkExpanded === true || !!bParkSel || (viewingThisMonth && !todayLogged);
-  if (!expanded){
+  const nowD = new Date(); nowD.setHours(0,0,0,0);
+  const todayK = bTodayKey();
+  const todayIsWorkday = nowD.getDay()>=1 && (nowD.getDay()<=6);
+  const todayUnlogged = bstate.parking[todayK]===undefined;
+  if (!bParkExpanded){
     el.innerHTML = '<button class="b-paneltog" data-bparkexpand="1">'
-      + (viewingThisMonth
-        ? '<span class="eyebrow">\uD83C\uDD7F\uFE0F Parking today \u2014 <span class="good">\u2713 $'+money(bstate.parking[bTodayKey()])+'</span></span>'
-        : '<span class="eyebrow">\uD83C\uDD7F\uFE0F Parking</span>')
+      + '<span class="eyebrow">\uD83C\uDD7F\uFE0F Parking'
+      + (todayIsWorkday && todayUnlogged ? ' <span class="b-creep">\u00B7 today \u2014</span>' : '')
+      + '</span>'
       + '<span class="b-togval">'+BMONTHS[m]+': $'+money(pm.sum)+' ('+pm.days+'d) \u25B8</span></button>';
     return;
   }
-  // in another month, default the picker into that month so backfills land where you're looking
-  const selDate = bParkSel || (viewingThisMonth ? bTodayKey() : bMonthKey(y,m)+'-01');
-  const cur = bstate.parking[selDate];
-  const chips = [0, 19, 21, 24, 25, 27, 28]; // the actual rates at his lots — $0 for no-park days
+  const mon = bParkWeekStart ? fromKey(bParkWeekStart) : bMonday(new Date());
+  const sat = new Date(mon); sat.setDate(sat.getDate()+5);
+  const isThisWeek = toKey(mon) === toKey(bMonday(new Date()));
+  const days = bParkWeekDays();
+  const chips = [0, 19, 21, 24, 25, 27, 28];
+  let html = '<button class="b-paneltog" data-bparkclose="1">'
+    + '<span class="eyebrow">\uD83C\uDD7F\uFE0F Parking</span>'
+    + '<span class="b-togval">'+BMONTHS[m]+': $'+money(pm.sum)+' ('+pm.days+'d) \u25BE</span></button>'
+    + '<div class="b-paneltog" style="margin:10px 0 2px">'
+    + '<button class="smallbtn" style="flex:none; padding:7px 14px" data-bparkw="-1">\u2039</button>'
+    + '<span class="b-togval" style="color:var(--text)">'+bFmtDue(mon)+' \u2013 '+bFmtDue(sat)+(isThisWeek?' \u00B7 this week':'')+'</span>'
+    + '<button class="smallbtn" style="flex:none; padding:7px 14px"'+(isThisWeek?' disabled style="flex:none; padding:7px 14px; opacity:.35"':'')+' data-bparkw="1">\u203A</button>'
+    + '</div>';
+  for (const k of days){
+    const d = fromKey(k);
+    const v = bstate.parking[k];
+    const isFuture = d > nowD;
+    const open = bParkSel === k;
+    html += '<div class="day'+(open?' open':'')+'">'
+      + '<button class="dayhead" data-bparkday="'+k+'"'+(isFuture?' style="opacity:.4"':'')+'>'
+      + '<span><span class="b-name">'+BDOW[d.getDay()]+' <span class="b-sub" style="display:inline">'+bFmtDue(d)+(k===todayK?' \u00B7 today':'')+'</span></span></span>'
+      + '<span class="b-amt'+(v!==undefined?' paid':'')+'" style="'+(v===undefined?'color:var(--dim); font-weight:400':'')+'">'
+      + (v!==undefined ? '\u2713 $'+money(v) : '$0.00')+'</span>'
+      + '</button>';
+    if (open){
+      html += '<div style="padding:0 12px 14px">'
+        + '<div class="chiprow" style="margin-top:2px">'
+        + chips.map(c=>'<button class="chip" style="font-size:14px; padding:10px 0'+(v===c?'; background:var(--orange); color:var(--orange-text); border-color:var(--orange)':'')+'" data-bpark="'+c+'">'+(c===0?'$0':c)+'</button>').join('')
+        + '</div>'
+        + '<div class="comprow" style="margin-top:8px"><label for="bParkOther" class="b-tmplsub">Other amount</label>'
+        + '<span><input class="compinput" id="bParkOther" type="number" inputmode="decimal" step="0.25" style="width:90px" placeholder="0.00">'
+        + ' <button class="smallbtn" style="flex:none; padding:9px 14px" data-bparksave="1">Save</button>'
+        + (v!==undefined ? ' <button class="smallbtn danger" style="flex:none; padding:9px 14px" data-bparkdel="1">Clear</button>' : '')
+        + '</span></div></div>';
+    }
+    html += '</div>';
+  }
   const worked = bDaysWorkedIn(y, m);
   const missing = Math.max(0, worked - pm.days);
-  const isToday = selDate === bTodayKey();
-  el.innerHTML =
-    '<div class="b-paneltog" style="cursor:default">'
-    + '<span class="eyebrow">\uD83C\uDD7F\uFE0F Parking '+(isToday?'today':bFmtDue(fromKey(selDate)))
-    + (cur!==undefined ? ' \u2014 <span class="good">$'+money(cur)+' \u2713</span>' : '')+'</span>'
-    + '<input class="compinput" id="bParkDate" type="date" style="width:150px; padding:6px 8px; font-size:13px" value="'+selDate+'"></div>'
-    + '<div class="chiprow" style="margin-top:10px">'
-    + chips.map(v=>'<button class="chip" style="font-size:14px; padding:10px 0'+(cur===v?'; background:var(--orange); color:var(--orange-text); border-color:var(--orange)':'')+'" data-bpark="'+v+'">'+(v===0?'$0':v)+'</button>').join('')
-    + '</div>'
-    + '<div class="comprow" style="margin-top:8px"><label for="bParkOther" class="b-tmplsub">Other amount</label>'
-    + '<span><input class="compinput" id="bParkOther" type="number" inputmode="decimal" step="0.25" style="width:90px" placeholder="0.00">'
-    + ' <button class="smallbtn" style="flex:none; padding:9px 14px" data-bparksave="1">Save</button>'
-    + (cur!==undefined ? ' <button class="smallbtn danger" style="flex:none; padding:9px 14px" data-bparkdel="1">Clear</button>' : '')
-    + '</span></div>'
-    + '<div class="b-stsline" style="margin-top:10px">'+BMONTHS[m]+': <b>$'+money(pm.sum)+'</b> \u00B7 '+pm.days+' day'+(pm.days===1?'':'s')+' logged'
+  html += '<div class="b-stsline" style="margin-top:6px">'+BMONTHS[m]+': <b>$'+money(pm.sum)+'</b> \u00B7 '+pm.days+' day'+(pm.days===1?'':'s')
     + (pm.days>0 ? ' \u00B7 avg <b>$'+money(pm.sum/pm.days)+'</b>/day' : '')
     + (missing>0 ? ' \u00B7 <span class="b-creep">'+missing+' worked day'+(missing===1?'':'s')+' not logged</span>' : '')
     + '</div>';
+  el.innerHTML = html;
 }
 
 function bRow(i, todayK){
@@ -2249,6 +2299,10 @@ function bRenderManage(){
     + '</div></div>'
     + '<div class="setrow"><label for="bDailyCost">Daily work cost ($/day \u2014 parking, tolls\u2026)</label>'
     + '<input id="bDailyCost" type="number" inputmode="decimal" step="0.5" min="0" placeholder="0" value="'+(bstate.settings.dailyCost||'')+'"></div>'
+    + '<div class="setrow"><label>Parking Sundays</label><div class="seg">'
+    + '<button class="segbtn'+(!bstate.settings.parkSun?' on':'')+'" data-bparksun="0">Off</button>'
+    + '<button class="segbtn'+(bstate.settings.parkSun?' on':'')+'" data-bparksun="1">On</button>'
+    + '</div></div>'
     + '<div class="setrow"><label>Bills color</label><div class="b-swatches">'
     + Object.entries(BPALS).map(([k,p])=>{
         const c = p.dark ? p.dark.acc : 'var(--orange)';
@@ -2416,31 +2470,40 @@ document.addEventListener('click', (e)=>{
     bstate.settings.dailyCost = bstate.settings.dailyCost || 21; // wakes the panel; real entries take over from here
     bsave(); renderBills(); return;
   }
-  if (ds.bparkexpand!==undefined){ bParkExpanded = true; renderBills(); return; }
+  if (ds.bparkexpand!==undefined){
+    bParkExpanded = true; bParkWeekStart = null;
+    bParkSel = bstate.parking[bTodayKey()]===undefined ? bTodayKey() : null; // today unlogged? open its editor
+    renderBills(); return;
+  }
+  if (ds.bparkclose!==undefined){ bParkExpanded = false; bParkSel = null; renderBills(); return; }
+  if (ds.bparkw!==undefined){
+    const mon = bParkWeekStart ? fromKey(bParkWeekStart) : bMonday(new Date());
+    mon.setDate(mon.getDate() + (+ds.bparkw)*7);
+    if (mon > bMonday(new Date())) return; // no logging the future
+    bParkWeekStart = toKey(mon); bParkSel = null; renderBills(); return;
+  }
+  if (ds.bparkday!==undefined){
+    bParkSel = (bParkSel===ds.bparkday ? null : ds.bparkday);
+    renderBills(); return;
+  }
   if (ds.bpark!==undefined){
-    const dEl = document.getElementById('bParkDate');
-    const key = (dEl && dEl.value) || bTodayKey();
+    const key = bParkKey();
     bstate.parking[key] = parseFloat(ds.bpark)||0;
-    bsave(); bParkSel=null; bParkExpanded=null; renderBills(); return; // collapse = saved
+    bsave(); bParkAdvance(key); renderBills(); return;
   }
   if (ds.bparksave!==undefined){
     const amt = parseFloat(document.getElementById('bParkOther').value);
-    const dEl = document.getElementById('bParkDate');
-    const key = (dEl && dEl.value) || bTodayKey();
+    const key = bParkKey();
     if (!isNaN(amt) && amt>=0){
-      bstate.parking[key] = amt; bsave();
-      bParkSel=null; bParkExpanded=null; renderBills();
-    } else if (bstate.parking[key]!==undefined){
-      // empty box but the day is already logged — Save just closes the panel
-      bParkSel=null; bParkExpanded=null; renderBills();
+      bstate.parking[key] = amt; bsave(); bParkAdvance(key); renderBills();
+    } else {
+      bParkSel = null; renderBills(); // nothing typed — just close this day's editor
     }
     return;
   }
   if (ds.bparkdel!==undefined){
-    const dEl = document.getElementById('bParkDate');
-    const key = (dEl && dEl.value) || bTodayKey();
-    delete bstate.parking[key];
-    bsave(); bParkSel=null; bParkExpanded=null; renderBills(); return;
+    delete bstate.parking[bParkKey()];
+    bsave(); bParkSel=null; renderBills(); return;
   }
   if (ds.bquick!==undefined){
     const q = BQUICK[+ds.bquick];
@@ -2456,11 +2519,11 @@ document.addEventListener('click', (e)=>{
 
   if (t.id==='bPrevMonth' || t.id==='bNextMonth'){
     bMonth.setMonth(bMonth.getMonth() + (t.id==='bNextMonth'?1:-1));
-    bOpen=null; bConfirm=null; bShowPaid=false; bShowSubs=false; bParkExpanded=null; renderBills(); return;
+    bOpen=null; bConfirm=null; bShowPaid=false; bShowSubs=false; renderBills(); return;
   }
   if (t.id==='bMonthHome'){
     bMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
-    bOpen=null; bConfirm=null; bShowPaid=false; bShowSubs=false; bParkExpanded=null; renderBills(); return;
+    bOpen=null; bConfirm=null; bShowPaid=false; bShowSubs=false; renderBills(); return;
   }
   if (t.id==='bManageBtn'){ bManageOpen=!bManageOpen; if(!bManageOpen){bConfirmDel=false;} renderBills(); return; }
   if (t.id==='bAddBill'){
@@ -2508,6 +2571,7 @@ document.addEventListener('click', (e)=>{
   if (ds.bpd!==undefined){ bstate.settings.paydayDow = +ds.bpd; bsave(); renderBills(); return; }
   if (ds.bpal!==undefined){ bstate.settings.palette = ds.bpal; bsave(); bApplyPalette(); renderBills(); return; }
   if (ds.blag!==undefined){ bstate.settings.payLag = +ds.blag; bsave(); renderBills(); return; }
+  if (ds.bparksun!==undefined){ bstate.settings.parkSun = +ds.bparksun; bsave(); renderBills(); return; }
   if (ds.bnew!==undefined){ bEdit='new'; bDraft=bBlankDraft(); bConfirmDel=false; renderBills(); return; }
   if (ds.bedit!==undefined){
     const t0 = bstate.templates[ds.bedit];
