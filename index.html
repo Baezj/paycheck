@@ -1311,7 +1311,7 @@ document.getElementById('payCard').addEventListener('click', (e)=>{
 // the pay data ('paytracker:v1') — it only reads it for cash flow.
 // ==================================================================
 const BKEY = 'billtracker:v1';
-const BDEF = { templates:{}, payments:{}, overrides:{}, parking:{}, settings:{ paydayDow:5, palette:'ocean', payLag:1, dailyCost:0, parkSun:0 }, ui:{ snapDismissed:false, lastTab:'week', sumOpen:false, crunchOpen:false, yearOpen:false, stsOpen:false, cardsOpen:false, loansOpen:false, backupSnooze:null } };
+const BDEF = { templates:{}, payments:{}, overrides:{}, parking:{}, settings:{ paydayDow:5, palette:'ocean', payLag:1, dailyCost:0, parkSun:0, gasWeekly:0 }, ui:{ snapDismissed:false, lastTab:'week', sumOpen:false, crunchOpen:false, yearOpen:false, stsOpen:false, cardsOpen:false, loansOpen:false, backupSnooze:null } };
 let bstate = JSON.parse(JSON.stringify(BDEF));
 try {
   const bsaved = JSON.parse(localStorage.getItem(BKEY));
@@ -1867,7 +1867,8 @@ function bRenderSts(){
       let billsDue = 0; for (const i of insts) billsDue += bExpAmt(i);
       const dpark = bParkAvg();
       const parkEst = dpark>0 ? dpark * bWeekdaysInMonth(y,m) : 0;
-      const left = income - billsDue - parkEst;
+      const gasEst = (bstate.settings.gasWeekly||0) * checks;
+      const left = income - billsDue - parkEst - gasEst;
       const yTag = y!==nowD.getFullYear() ? ' '+y : '';
       el.innerHTML = '<button class="b-paneltog" data-btogsts="1">'
         + '<span class="eyebrow">'+BMONTHS[m]+yTag+' outlook</span>'+tog+'</button>'
@@ -1875,6 +1876,7 @@ function bRenderSts(){
         + (stsOpen ? '<div class="b-stsline">Expected pay ('+checks+' payday'+(checks===1?'':'s')+' \u00D7 $'+money(avg)+' avg): <b>$'+money(income)+'</b>'
           + '<br>Bills that month: <b>\u2212$'+money(billsDue)+'</b>'
           + (parkEst>0 ? '<br>Parking est. ('+bWeekdaysInMonth(y,m)+' workdays \u00D7 $'+money(dpark)+'): <b>\u2212$'+money(parkEst)+'</b>' : '')
+          + (gasEst>0 ? '<br>Gas est. ('+checks+' wk \u00D7 $'+money(bstate.settings.gasWeekly)+'): <b>\u2212$'+money(gasEst)+'</b>' : '')
           + '<br><span class="dimtext">Projected leftover \u2014 estimates firm up as bills and weeks get logged.</span></div>' : '');
     }
     return;
@@ -1897,6 +1899,7 @@ function bRenderSts(){
     + '<br>Bills it must cover (through '+bFmtDue(winEnd)+'): <b>\u2212$'+money(p.dueSum)+'</b>'+(p.dueN? ' ('+p.dueN+' bill'+(p.dueN===1?'':'s')+')':'')
     + (p.preN>0 ? '<br><span class="warn">\u26A0 $'+money(p.preSum)+' of that is due before the check lands \u2014 needs cash on hand.</span>' : '')
     + (p.work>0 ? '<br>Parking (\u2248'+p.wd+' workday'+(p.wd===1?'':'s')+' \u00D7 your $'+money(p.dc)+' avg): <b>\u2212$'+money(p.work)+'</b>' : '')
+    + (p.gas>0 ? '<br>Gas (weekly est.): <b>\u2212$'+money(p.gas)+'</b>' : '')
     + (p.sg>0 ? '<br>Savings goal: <b>\u2212$'+money(p.sg)+'</b>' : '')
     + (p.sts<0 ? '<br><span class="warn">\u26A0 This check can\u2019t cover its stretch \u2014 see the week radar in Insights.</span>' : '')
     + '</div>');
@@ -1951,9 +1954,10 @@ function bStsParts(){
   const windowEnd = new Date(w.pd2); windowEnd.setDate(windowEnd.getDate()-1);
   const wd = dc > 0 ? bWorkdaysUntil(windowEnd) : 0;
   const work = dc * wd;
+  const gas = bstate.settings.gasWeekly||0;
   return { ec, overSum:w.overSum, overN:w.overN, dueSum:w.dueSum, dueN:w.dueN,
            preSum:w.preSum, preN:w.preN, pd:w.pd, pd2:w.pd2,
-           sg, dc, wd, work, sts: ec.amt - w.overSum - w.dueSum - sg - work };
+           sg, dc, wd, work, gas, sts: ec.amt - w.overSum - w.dueSum - sg - work - gas };
 }
 // Scrolled to another month? The headline changes tense with you.
 function bPaydaysInMonth(y,m){
@@ -2456,7 +2460,11 @@ function bRenderSummary(insts, y, m){
   if (pmS.days>0){
     cells.push(['Parking (logged)','$'+money(pmS.sum)+' ('+pmS.days+' day'+(pmS.days===1?'':'s')+')','var(--dim)']);
   } else {
-    const dcost = bstate.settings.dailyCost||0;
+    if ((bstate.settings.gasWeekly||0) > 0){
+    const gasMo = bstate.settings.gasWeekly * bPaydaysInMonth(y, m);
+    cells.push(['Gas (est.)','\u2248 $'+money(gasMo)+'/mo','var(--dim)']);
+  }
+  const dcost = bstate.settings.dailyCost||0;
     if (dcost>0){
       const daysWorked = bDaysWorkedIn(y, m);
       if (daysWorked>0) cells.push(['Parking (est.)','\u2248 $'+money(daysWorked*dcost)+' ('+daysWorked+' day'+(daysWorked===1?'':'s')+')','var(--dim)']);
@@ -2519,6 +2527,8 @@ function bRenderManage(){
     + '</div></div>'
     + '<div class="setrow"><label for="bDailyCost">Daily work cost ($/day \u2014 parking, tolls\u2026)</label>'
     + '<input id="bDailyCost" type="number" inputmode="decimal" step="0.5" min="0" placeholder="0" value="'+(bstate.settings.dailyCost||'')+'"></div>'
+    + '<div class="setrow"><label for="bGasWeekly">Gas ($/week, estimate)</label>'
+    + '<input id="bGasWeekly" type="number" inputmode="decimal" step="5" min="0" placeholder="0" value="'+(bstate.settings.gasWeekly||'')+'"></div>'
     + '<div class="setrow"><label>Parking Sundays</label><div class="seg">'
     + '<button class="segbtn'+(!bstate.settings.parkSun?' on':'')+'" data-bparksun="0">Off</button>'
     + '<button class="segbtn'+(bstate.settings.parkSun?' on':'')+'" data-bparksun="1">On</button>'
@@ -2898,6 +2908,11 @@ document.addEventListener('input', (e)=>{
     bstate.settings.dailyCost = parseFloat(e.target.value)||0;
     bsave();
     bRenderSts(); bUpdateStrip(); // live-refresh the headline without re-rendering the input under your thumb
+  }
+  if (e.target.id === 'bGasWeekly'){
+    bstate.settings.gasWeekly = parseFloat(e.target.value)||0;
+    bsave();
+    bRenderSts(); bUpdateStrip();
   }
 });
 
