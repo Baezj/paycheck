@@ -166,6 +166,10 @@
   .b-grouplabel{font-family:ui-monospace,Menlo,monospace; font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:var(--dim); margin:14px 0 8px;}
   .b-grouplabel.over{color:var(--red);}
   .day.b-over{border-color:var(--red);}
+  .day.b-t1{border-left:4px solid var(--orange);}
+  .day.b-t2{border-left:4px solid var(--line2, var(--dim));}
+  .b-grouplabel.hot{color:var(--orange);}
+  .b-duetag.t1{color:var(--orange); font-weight:600;}
   .day.b-paidrow{opacity:.55;}
   .day.b-paidrow.open{opacity:1;}
   .b-name{font-size:15px; font-weight:600; text-align:left;}
@@ -1703,7 +1707,22 @@ function renderBills(){
   addGroup('\u26A0 Overdue', over, 'over');
   const subs = due.filter(i=>i.t.cat==='sub');
   const main = due.filter(i=>i.t.cat!=='sub');
-  addGroup('Coming up', main, '');
+  if (isThisMonth && main.length){
+    // group by which paycheck each bill comes out of — the affordability view
+    const pd1 = bNextPayday();
+    const pd2 = new Date(pd1); pd2.setDate(pd2.getDate()+7);
+    const t1 = [], t2 = [], later = [];
+    for (const i of main){
+      if (i.due <= pd1){ i._tier = 1; t1.push(i); }
+      else if (i.due <= pd2){ i._tier = 2; t2.push(i); }
+      else later.push(i);
+    }
+    addGroup('This check \u00B7 by '+BDOW[pd1.getDay()]+' '+bFmtDue(pd1), t1, 'hot');
+    addGroup('Next check \u00B7 by '+bFmtDue(pd2), t2, '');
+    addGroup('Later in '+BMONTHS[m], later, '');
+  } else {
+    addGroup('Coming up', main, '');
+  }
   if (subs.length){
     if (bShowSubs){
       addGroup('Subscriptions', subs, '');
@@ -2110,7 +2129,7 @@ function bRow(i, todayK){
   const amt = settled ? bExpAmt(i) : rem;
   const creep = bCreep(i.tid);
   const card = document.createElement('div');
-  card.className = 'day'+(open?' open':'')+(isOver?' b-over':'')+(settled && !conf?' b-paidrow':'')
+  card.className = 'day'+(open?' open':'')+(isOver?' b-over':'')+(!isOver && i._tier===1?' b-t1':'')+(!isOver && i._tier===2?' b-t2':'')+(settled && !conf?' b-paidrow':'')
     +(conf && conf.mode==='del'?' confirm':'')+(conf && conf.mode==='menu'?' b-menu':'');
   let sub = bIconFor(i.t)+' '+bCatLabel(i.t) + (i.t.autopay ? ' \u00B7 autopay' : '');
   if (i.t.cat==='loan' && i.t.loanTotal>0){
@@ -2128,7 +2147,7 @@ function bRow(i, todayK){
     + '<span class="b-sub">'+sub+(isPartial ? ' \u00B7 paid $'+money(i.pay.amt||0)+' of $'+money(bExpAmt(i)) : '')+'</span></span>'
     + '<span style="text-align:right"><span class="b-amt'+(settled?' paid':'')+'">'
     + (settled?'\u2713 ':'')+(i.pay && i.pay.skip ? 'skipped' : '$'+money(amt))+'</span>'
-    + '<span class="b-duetag'+(isOver?' over':'')+'">'
+    + '<span class="b-duetag'+(isOver?' over':'')+(!isOver && i._tier===1 && !settled?' t1':'')+'">'
     + (settled ? (i.pay.skip ? 'this month' : 'paid '+bFmtPaidDate(i.pay)) : (isOver?'was due ':'due ')+bFmtDue(i.due))+'</span></span>'
     + '</button>'
     + (conf && conf.mode==='menu' ?
