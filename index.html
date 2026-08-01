@@ -380,7 +380,6 @@
     <div class="panel hidden" id="bCardsPanel"></div>
     <div class="panel hidden" id="bParkPanel"></div>
     <div class="panel hidden" id="bSummary"></div>
-    <div class="panel hidden" id="bCrunch"></div>
     <button class="sharebar" id="bManageBtn">&#9881; Manage bills &amp; payday</button>
     <div id="bManage" class="hidden"></div>
     <button class="sharebar" id="bHistoryBtn" style="margin-top:12px">📊 Bills history</button>
@@ -1754,7 +1753,6 @@ function renderBills(){
   }
 
   bRenderSummary(insts, y, m);
-  bRenderCrunch();
   bRenderCards();
   bRenderPark();
   bRenderYear();
@@ -2321,7 +2319,7 @@ function bRenderSummary(insts, y, m){
   }
   const open = !!bstate.ui.sumOpen;
   const head = '<button class="b-paneltog" data-btogsum="1">'
-    + '<span class="eyebrow">'+BMONTHS[m]+' summary</span>'
+    + '<span class="eyebrow">\uD83D\uDCC8 '+BMONTHS[m]+' insights</span>'
     + '<span class="b-togval">'+((due-paidSum)>0 ? '$'+money(due-paidSum)+' to pay' : 'all paid \u2713')+' '+(open?'\u25BE':'\u25B8')+'</span>'
     + '</button>';
   if (!open){ el.innerHTML = head; return; }
@@ -2368,14 +2366,13 @@ function bRenderSummary(insts, y, m){
     + '<div class="projnote">'
     + (subN>0 ? subN+' subscription'+(subN===1?'':'s')+' = $'+money(subMo*12)+'/yr \u2014 the quietest leak there is. ' : '')
     + (streak>0 ? '\uD83D\uDD25 '+streak+' month'+(streak===1?'':'s')+' with everything paid on time.' : '')
-    + '</div>';
+    + '</div>'
+    + bRadarHtml();
 }
-
-// Crunch radar: the next 4 weeks, each week's unpaid bills vs your average check
-function bRenderCrunch(){
-  const el = document.getElementById('bCrunch');
+// The 4-weeks radar, rendered inside the insights panel
+function bRadarHtml(){
   const avg = bAvgCheck();
-  if (avg<=0 || !Object.keys(bstate.templates).length){ el.classList.add('hidden'); return; }
+  if (avg<=0 || !Object.keys(bstate.templates).length) return '';
   const today = new Date(); today.setHours(0,0,0,0);
   const horizon = new Date(today); horizon.setDate(horizon.getDate()+28);
   const pool = [];
@@ -2398,17 +2395,8 @@ function bRenderCrunch(){
     }
     rows.push({s, e, sum, n, tight: sum > avg*0.75, over: sum > avg});
   }
-  if (!rows.some(r=>r.n>0)){ el.classList.add('hidden'); return; }
-  el.classList.remove('hidden');
-  const open = !!bstate.ui.crunchOpen;
-  const worst = rows.reduce((a,b)=> b.sum>a.sum ? b : a, rows[0]);
-  const head = '<button class="b-paneltog" data-btogcrunch="1">'
-    + '<span class="eyebrow">Next 4 weeks</span>'
-    + '<span class="b-togval'+(worst.over?' warn':'')+'">'+(worst.over?'\u26A0 ':'')+'up to $'+money(worst.sum)+'/wk '+(open?'\u25BE':'\u25B8')+'</span>'
-    + '</button>';
-  if (!open){ el.innerHTML = head; return; }
-  el.innerHTML = head
-    + '<div class="b-tmplsub" style="margin:6px 0 0">vs your \u2248$'+money(avg)+' check</div>'
+  if (!rows.some(r=>r.n>0)) return '';
+  return '<div class="eyebrow" style="margin-top:16px">Next 4 weeks vs your \u2248$'+money(avg)+' check</div>'
     + '<div class="compresult" style="margin-top:8px">'
     + rows.map(r=>'<div class="bd-line"><span>'+bFmtDue(r.s)+' \u2013 '+bFmtDue(r.e)+(r.n?' \u00B7 '+r.n+' bill'+(r.n===1?'':'s'):'')+'</span>'
       + '<span class="'+(r.over?'warn':r.tight?'b-creep':'good')+'">$'+money(r.sum)+(r.over?' \u26A0':'')+'</span></div>').join('')
@@ -2586,7 +2574,6 @@ document.addEventListener('click', (e)=>{
     bConfirm=null; bOpen=null; renderBills(); return;
   }
   if (ds.btogsum!==undefined){ bstate.ui.sumOpen = !bstate.ui.sumOpen; bsave(); renderBills(); return; }
-  if (ds.btogcrunch!==undefined){ bstate.ui.crunchOpen = !bstate.ui.crunchOpen; bsave(); renderBills(); return; }
   if (ds.btogcards!==undefined){ bstate.ui.cardsOpen = !bstate.ui.cardsOpen; bsave(); renderBills(); return; }
   if (t.id==='bHistoryBtn'){ bstate.ui.yearOpen = !bstate.ui.yearOpen; bsave(); renderBills(); return; }
   if (ds.btogyear!==undefined){ bstate.ui.yearOpen = !bstate.ui.yearOpen; bsave(); renderBills(); return; }
