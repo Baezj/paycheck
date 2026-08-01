@@ -1640,26 +1640,34 @@ function bCarryover(){
   out.sort((a,b)=>a.due-b.due);
   return out;
 }
-// What stands between you and next payday: overdue catch-up + bills coming due
+// The rolling-check window: the incoming check must last until the NEXT one.
+// Everything due from today through the day before that next-next check is ITS job.
 function bDueBeforePayday(){
   const today = new Date(); today.setHours(0,0,0,0);
   const pd = bNextPayday();
+  const pd2 = new Date(pd); pd2.setDate(pd2.getDate()+7);
   const carry = bCarryover();
   let overSum = 0;
   for (const i of carry) overSum += bRemaining(i);
   const seen = new Set(carry.map(i=>i.iid));
-  const insts = [
-    ...bInstancesFor(today.getFullYear(), today.getMonth()),
-    ...bInstancesFor(pd.getFullYear(), pd.getMonth()),
-  ];
-  let dueSum = 0, dueN = 0;
+  const monthKeys = new Set();
+  const insts = [];
+  for (const d of [today, pd, pd2]){
+    const mk = bMonthKey(d.getFullYear(), d.getMonth());
+    if (monthKeys.has(mk)) continue; monthKeys.add(mk);
+    insts.push(...bInstancesFor(d.getFullYear(), d.getMonth()));
+  }
+  let dueSum = 0, dueN = 0, preSum = 0, preN = 0;
   for (const i of insts){
     if (seen.has(i.iid)) continue; seen.add(i.iid);
     const rem = bRemaining(i);
     if (rem <= 0) continue;
-    if (i.due >= today && i.due <= pd){ dueSum += rem; dueN++; }
+    if (i.due >= today && i.due < pd2){
+      dueSum += rem; dueN++;
+      if (i.due < pd){ preSum += rem; preN++; } // due before the check even lands
+    }
   }
-  return { overSum, overN: carry.length, dueSum, dueN, pd };
+  return { overSum, overN: carry.length, dueSum, dueN, preSum, preN, pd, pd2 };
 }
 // On-time streak: consecutive fully on-time months, counting back from last month
 function bStreak(){
@@ -1726,20 +1734,30 @@ function renderBills(){
     for (const i of arr) list.appendChild(bRow(i, todayK));
   };
   addGroup('\u26A0 Overdue', over, 'over');
-  const subs = due.filter(i=>i.t.cat==='sub');
-  const main = due.filter(i=>i.t.cat!=='sub');
+  let subs = due.filter(i=>i.t.cat==='sub');
+  let main = due.filter(i=>i.t.cat!=='sub');
+  if (isThisMonth && subs.length){
+    // urgency beats category: a sub this check must cover escapes the fold
+    const pdEscEnd = bNextPayday(); pdEscEnd.setDate(pdEscEnd.getDate()+7);
+    const urgent = subs.filter(i=>i.due < pdEscEnd);
+    if (urgent.length){
+      main = [...main, ...urgent].sort((a,b)=>a.due-b.due);
+      subs = subs.filter(i=>i.due >= pdEscEnd);
+    }
+  }
   if (isThisMonth && main.length){
-    // group by which paycheck each bill comes out of — the affordability view
+    // group by which paycheck pays each bill — the same window as the headline
     const pd1 = bNextPayday();
-    const pd2 = new Date(pd1); pd2.setDate(pd2.getDate()+7);
+    const pdA = new Date(pd1); pdA.setDate(pdA.getDate()+7);  // this check's reach
+    const pdB = new Date(pd1); pdB.setDate(pdB.getDate()+14); // next check's reach
     const t1 = [], t2 = [], later = [];
     for (const i of main){
-      if (i.due <= pd1){ i._tier = 1; t1.push(i); }
-      else if (i.due <= pd2){ i._tier = 2; t2.push(i); }
+      if (i.due < pdA){ i._tier = 1; t1.push(i); }
+      else if (i.due < pdB){ i._tier = 2; t2.push(i); }
       else later.push(i);
     }
-    addGroup('This check \u00B7 by '+BDOW[pd1.getDay()]+' '+bFmtDue(pd1), t1, 'hot');
-    addGroup('Next check \u00B7 by '+bFmtDue(pd2), t2, '');
+    addGroup('This check \u00B7 lands '+BDOW[pd1.getDay()]+' '+bFmtDue(pd1), t1, 'hot');
+    addGroup('Next check \u00B7 lands '+bFmtDue(pdA), t2, '');
     addGroup('Later in '+BMONTHS[m], later, '');
   } else {
     addGroup('Coming up', main, '');
@@ -1756,7 +1774,7 @@ function renderBills(){
       const row = document.createElement('button');
       row.className = 'b-paidcollapse';
       row.dataset.bshowsubs = '1';
-      row.innerHTML = '<span>\uD83D\uDCFA Subscriptions ('+subs.length+') \u00B7 tap to show</span><span>$'+money(tot)+'</span>';
+      row.innerHTML = '<span>\uD83D\uDCFA Subscriptions ('+subs.length+') \u00B7 next '+bFmtDue(subs[0].due)+'</span><span>$'+money(tot)+'</span>';
       list.appendChild(row);
     }
   }
@@ -1863,21 +1881,24 @@ function bRenderSts(){
   }
   const p = bStsParts();
   if (p.ec.amt<=0 && !Object.keys(bstate.templates).length){
-    el.innerHTML = '<div class="eyebrow">Safe to spend</div>'
-      + '<div class="b-stsline">Add your bills below and this becomes your cash-flow headline: expected check \u2212 bills due before payday \u2212 savings goal.</div>';
+    el.innerHTML = '<div class="eyebrow">Remaining from check</div>'
+      + '<div class="b-stsline">Add your bills below and this becomes your headline: what\u2019s left from each check after everything it has to cover.</div>';
     return;
   }
+  const winEnd = new Date(p.pd2); winEnd.setDate(winEnd.getDate()-1);
   el.innerHTML = '<button class="b-paneltog" data-btogsts="1">'
-    + '<span class="eyebrow">Safe to spend until payday ('+BDOW[bstate.settings.paydayDow]+' '+bFmtDue(p.pd)+')</span>'
+    + '<span class="eyebrow">Remaining \u00B7 '+BDOW[p.pd.getDay()]+' '+bFmtDue(p.pd)+' check</span>'
     + '<span class="b-togval">'+(stsOpen?'\u25BE':'the math \u25B8')+'</span></button>'
     + '<div class="b-sts '+(p.sts>=0?'good':'bad')+'">'+(p.sts<0?'\u2212':'')+'$'+money(Math.abs(p.sts))+'</div>'
-    + (!stsOpen ? (p.sts<0 ? '<div class="b-stsline"><span class="warn">\u26A0 Tight stretch \u2014 tap for the math.</span></div>' : '')
-    : '<div class="b-stsline">Expected check ('+p.ec.basis+'): <b>$'+money(p.ec.amt)+'</b>'
+    + (!stsOpen ? (p.sts<0 ? '<div class="b-stsline"><span class="warn">\u26A0 This check can\u2019t cover its stretch \u2014 tap for the math.</span></div>'
+      : '<div class="b-stsline">What\u2019s left after this check covers everything through '+bFmtDue(winEnd)+'.</div>')
+    : '<div class="b-stsline">Next check ('+p.ec.basis+'): <b>$'+money(p.ec.amt)+'</b>'
     + (p.overSum>0 ? '<br><span class="warn">Overdue to catch up: \u2212$'+money(p.overSum)+' ('+p.overN+' bill'+(p.overN===1?'':'s')+')</span>' : '')
-    + '<br>Bills due by payday: <b>\u2212$'+money(p.dueSum)+'</b>'+(p.dueN? ' ('+p.dueN+' bill'+(p.dueN===1?'':'s')+')':'')
-    + (p.work>0 ? '<br>Parking (\u2248'+p.wd+' day'+(p.wd===1?'':'s')+' \u00D7 your $'+money(p.dc)+' avg): <b>\u2212$'+money(p.work)+'</b>' : '')
+    + '<br>Bills it must cover (through '+bFmtDue(winEnd)+'): <b>\u2212$'+money(p.dueSum)+'</b>'+(p.dueN? ' ('+p.dueN+' bill'+(p.dueN===1?'':'s')+')':'')
+    + (p.preN>0 ? '<br><span class="warn">\u26A0 $'+money(p.preSum)+' of that is due before the check lands \u2014 needs cash on hand.</span>' : '')
+    + (p.work>0 ? '<br>Parking (\u2248'+p.wd+' workday'+(p.wd===1?'':'s')+' \u00D7 your $'+money(p.dc)+' avg): <b>\u2212$'+money(p.work)+'</b>' : '')
     + (p.sg>0 ? '<br>Savings goal: <b>\u2212$'+money(p.sg)+'</b>' : '')
-    + (p.sts<0 ? '<br><span class="warn">\u26A0 This stretch is tight \u2014 check the week radar below.</span>' : '')
+    + (p.sts<0 ? '<br><span class="warn">\u26A0 This check can\u2019t cover its stretch \u2014 see the week radar in Insights.</span>' : '')
     + '</div>');
 }
 
@@ -1927,9 +1948,11 @@ function bStsParts(){
   const w = bDueBeforePayday();
   const sg = state.settings.savingsGoal||0;
   const dc = bParkAvg();
-  const wd = dc > 0 ? bWorkdaysUntil(w.pd) : 0;
+  const windowEnd = new Date(w.pd2); windowEnd.setDate(windowEnd.getDate()-1);
+  const wd = dc > 0 ? bWorkdaysUntil(windowEnd) : 0;
   const work = dc * wd;
-  return { ec, overSum:w.overSum, overN:w.overN, dueSum:w.dueSum, dueN:w.dueN, pd:w.pd,
+  return { ec, overSum:w.overSum, overN:w.overN, dueSum:w.dueSum, dueN:w.dueN,
+           preSum:w.preSum, preN:w.preN, pd:w.pd, pd2:w.pd2,
            sg, dc, wd, work, sts: ec.amt - w.overSum - w.dueSum - sg - work };
 }
 // Scrolled to another month? The headline changes tense with you.
@@ -1963,7 +1986,7 @@ function bUpdateStrip(){
   if (!Object.keys(bstate.templates).length){ el.classList.add('hidden'); return; }
   const p = bStsParts();
   el.classList.remove('hidden');
-  el.innerHTML = '\uD83D\uDCB5 Safe to spend until '+BDOW[bstate.settings.paydayDow]+' '+bFmtDue(p.pd)+': '
+  el.innerHTML = '\uD83D\uDCB5 Remaining from '+BDOW[p.pd.getDay()]+' '+bFmtDue(p.pd)+' check: '
     + '<b style="color:var(--'+(p.sts>=0?'green':'red')+')">'+(p.sts<0?'\u2212':'')+'$'+money(Math.abs(p.sts))+'</b> \u203A';
 }
 
