@@ -2986,10 +2986,10 @@ if (bstate.ui.lastTab && bstate.ui.lastTab !== 'week'){
   const lastTabBtn = document.querySelector('.tab[data-screen="'+bstate.ui.lastTab+'"]');
   if (lastTabBtn) lastTabBtn.click();
 }
-// Auto-open today's card when viewing the current week (skip Sunday if it's toggled off)
+// Auto-open today's card when viewing the current week (skip Sunday if it's toggled off; Saturdays never auto-open — tap when you do work one)
 if (toKey(weekEndSat(new Date())) === toKey(weekEnd)){
   const td = new Date().getDay();
-  openDay = (td===0 && !state.settings.workSundays) ? null : td;
+  openDay = ((td===0 && !state.settings.workSundays) || td===6) ? null : td;
 }
 renderWeek();
 
