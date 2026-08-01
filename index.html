@@ -380,6 +380,7 @@
     <div id="bEditorBox"></div>
     <button id="bAddBill" class="b-fab" aria-label="Add a bill">+</button>
     <div class="panel hidden" id="bCardsPanel"></div>
+    <div class="panel hidden" id="bLoansPanel"></div>
     <div class="panel hidden" id="bParkPanel"></div>
     <div class="panel hidden" id="bSummary"></div>
     <button class="sharebar" id="bManageBtn">&#9881; Manage bills &amp; payday</button>
@@ -1307,7 +1308,7 @@ document.getElementById('payCard').addEventListener('click', (e)=>{
 // the pay data ('paytracker:v1') — it only reads it for cash flow.
 // ==================================================================
 const BKEY = 'billtracker:v1';
-const BDEF = { templates:{}, payments:{}, overrides:{}, parking:{}, settings:{ paydayDow:5, palette:'ocean', payLag:1, dailyCost:0, parkSun:0 }, ui:{ snapDismissed:false, lastTab:'week', sumOpen:false, crunchOpen:false, yearOpen:false, stsOpen:false, cardsOpen:false, backupSnooze:null } };
+const BDEF = { templates:{}, payments:{}, overrides:{}, parking:{}, settings:{ paydayDow:5, palette:'ocean', payLag:1, dailyCost:0, parkSun:0 }, ui:{ snapDismissed:false, lastTab:'week', sumOpen:false, crunchOpen:false, yearOpen:false, stsOpen:false, cardsOpen:false, loansOpen:false, backupSnooze:null } };
 let bstate = JSON.parse(JSON.stringify(BDEF));
 try {
   const bsaved = JSON.parse(localStorage.getItem(BKEY));
@@ -1557,9 +1558,24 @@ function bMonthlyEq(t){
 }
 // Loan progress: payments made before the app + payments recorded in it
 function bLoanProg(tid, t){
-  const made = (t.loanPaid||0) + bPayHist(tid).length;
+  const made = (t.loanPaid||0) + bPayHist(tid).filter(r=>!r.skip && !r.partial && (r.amt||0)>0).length;
   const total = t.loanTotal||0;
   return { made: Math.min(made,total), total, left: Math.max(0, total-made) };
+}
+// Payoff picture from whatever the user gave us: payment counts, or just a balance
+function bLoanPayoff(tid, t){
+  const pr = bLoanProg(tid, t);
+  let left = null, made = pr.made, total = pr.total;
+  if (total > 0) left = pr.left;
+  else if (t.balance > 0 && (t.amt||0) > 0) left = Math.ceil(t.balance / t.amt);
+  if (left === null) return null;
+  const d = new Date();
+  if (t.freq==='weekly') d.setDate(d.getDate() + left*7);
+  else if (t.freq==='biweekly') d.setDate(d.getDate() + left*14);
+  else if (t.freq==='quarterly') d.setMonth(d.getMonth() + left*3);
+  else if (t.freq==='yearly') d.setMonth(d.getMonth() + left*12);
+  else { d.setDate(1); d.setMonth(d.getMonth() + left); }
+  return { made, total, left, date: d, counted: total>0 };
 }
 
 // ---- Cash flow: read-only peek at the pay data ----
@@ -1756,6 +1772,7 @@ function renderBills(){
 
   bRenderSummary(insts, y, m);
   bRenderCards();
+  bRenderLoans();
   bRenderPark();
   bRenderYear();
   document.getElementById('bEditorBox').innerHTML = (bEdit!==null && bDraft) ? bEditorHtml() : '';
@@ -2050,6 +2067,55 @@ function bParkWeekDays(){
   }
   return out;
 }
+// ---- Loans dashboard: every loan and pay plan side by side — remaining,
+// progress, payoff dates, and the one line that matters: the debt-free date.
+function bRenderLoans(){
+  const el = document.getElementById('bLoansPanel');
+  const loans = Object.entries(bstate.templates).filter(([,t])=>!t.archived && t.cat==='loan');
+  if (!loans.length){ el.classList.add('hidden'); return; }
+  el.classList.remove('hidden');
+  let remain=0, intMo=0, moEq=0, latest=null, anyBal=false;
+  const rows = [];
+  for (const [tid,t] of loans){
+    if (t.balance>0){ remain += t.balance; anyBal=true; }
+    if (t.apr>0 && t.balance>0) intMo += t.balance*t.apr/100/12;
+    moEq += bMonthlyEq(t);
+    const po = bLoanPayoff(tid, t);
+    if (po && po.left>0 && (!latest || po.date>latest)) latest = po.date;
+    rows.push([tid, t, po]);
+  }
+  const open = !!bstate.ui.loansOpen;
+  const head = '<button class="b-paneltog" data-btogloans="1">'
+    + '<span class="eyebrow">\uD83C\uDFE6 Loans</span>'
+    + '<span class="b-togval">'+(anyBal ? '$'+money(remain)+' left' : loans.length+' loan'+(loans.length===1?'':'s'))+' '+(open?'\u25BE':'\u25B8')+'</span></button>';
+  if (!open){ el.innerHTML = head; return; }
+  let html = head;
+  rows.sort((a,b)=>(b[1].balance||0)-(a[1].balance||0));
+  for (const [tid,t,po] of rows){
+    let sub = bCatLabel(t);
+    if (po){
+      sub = po.counted ? po.made+'/'+po.total+' paid' : '\u2248'+po.left+' left';
+      sub += po.left>0 ? ' \u00B7 done '+BMONTHS[po.date.getMonth()]+' '+po.date.getFullYear() : ' \u00B7 \uD83C\uDF89 done';
+    }
+    if (t.apr>0 && t.balance>0) sub += ' \u00B7 \u2248$'+money(t.balance*t.apr/100/12)+'/mo int';
+    html += '<button class="b-tmplrow" style="width:100%; margin-top:8px" data-bedit="'+tid+'">'
+      + '<span style="text-align:left; min-width:0"><div class="b-tmplinfo">'+bIconFor(t)+' '+escapeHtml(t.name)+'</div>'
+      + '<div class="b-tmplsub">'+sub+'</div></span>'
+      + '<span style="text-align:right"><div class="b-amt">'+(t.balance>0 ? '$'+money(t.balance) : '\u2014')+'</div>'
+      + '<div class="b-tmplsub">$'+money(bMonthlyEq(t))+'/mo</div></span></button>';
+    if (po && po.counted && po.total>0){
+      html += '<div class="b-prog" style="margin:6px 2px 2px"><div class="b-progfill" style="width:'+Math.round(po.made/Math.max(1,po.total)*100)+'%"></div></div>';
+    }
+  }
+  html += '<div class="b-tmplsub" style="text-align:right; margin-top:12px">'
+    + (anyBal ? 'Total remaining $'+money(remain)+' \u00B7 ' : '')
+    + '$'+money(moEq)+'/mo toward loans'
+    + (intMo>0 ? ' \u00B7 interest \u2248$'+money(intMo)+'/mo' : '')
+    + (latest ? '<br><b style="color:var(--green)">Debt-free '+BMONTHS[latest.getMonth()]+' '+latest.getFullYear()+'</b> \u2014 $'+money(moEq)+'/mo comes back to you' : '')
+    + '</div>';
+  el.innerHTML = html;
+}
+
 // ---- Cards dashboard: the four cards side by side — balances, utilization,
 // interest, next due. A *view* grouping; the due list keeps them in its timeline.
 function bCardNextDue(tid){
@@ -2244,18 +2310,19 @@ function bExpanded(i, amt){
     }
   }
   const hist = bPayHist(i.tid);
-  if (t.cat==='loan' && t.loanTotal>0){
-    const pr = bLoanProg(i.tid, t);
-    const doneD = new Date();
-    if (t.freq==='weekly') doneD.setDate(doneD.getDate() + pr.left*7);
-    else if (t.freq==='biweekly') doneD.setDate(doneD.getDate() + pr.left*14);
-    else if (t.freq==='quarterly') doneD.setMonth(doneD.getMonth() + pr.left*3);
-    else if (t.freq==='yearly') doneD.setMonth(doneD.getMonth() + pr.left*12);
-    else doneD.setMonth(doneD.getMonth() + Math.max(0, pr.left));
-    const freesUp = '$'+money(bMonthlyEq(t))+'/mo';
-    lines.push(['Progress', pr.made+' of '+pr.total+' payments \u00B7 '+pr.left+' left']);
-    if (pr.left>0) lines.push(['Paid off', bFmtDue(doneD)+' '+doneD.getFullYear()+' \u2014 frees up '+freesUp]);
-    else lines.push(['Paid off','\uD83C\uDF89 Done \u2014 '+freesUp+' freed up']);
+  if (t.cat==='loan'){
+    if (t.balance>0){
+      lines.push(['Remaining','$'+money(t.balance)+(t.balanceDate? ' \u00B7 updated '+bFmtDue(fromKey(t.balanceDate)) : '')]);
+      if (t.apr>0) lines.push(['Interest cost','\u2248 $'+money(t.balance*t.apr/100/12)+'/mo at '+t.apr+'% APR']);
+    }
+    const po = bLoanPayoff(i.tid, t);
+    if (po){
+      const freesUp = '$'+money(bMonthlyEq(t))+'/mo';
+      if (po.counted) lines.push(['Progress', po.made+' of '+po.total+' payments \u00B7 '+po.left+' left']);
+      else lines.push(['Payments left','\u2248 '+po.left+' (from balance \u00F7 payment)']);
+      if (po.left>0) lines.push(['Paid off', bFmtDue(po.date)+' '+po.date.getFullYear()+' \u2014 frees up '+freesUp]);
+      else lines.push(['Paid off','\uD83C\uDF89 Done \u2014 '+freesUp+' freed up']);
+    }
   }
   if (t.cat==='sub'){
     const mo = bMonthlyEq(t);
@@ -2510,7 +2577,9 @@ function bEditorHtml(){
          +  num('bfApr','APR (%)', d.apr, 'optional');
   if (d.cat==='loan')
     html += num('bfLoanTotal','Total # of payments', d.loanTotal, 'e.g. 24')
-         +  num('bfLoanPaid','Already paid before app', d.loanPaid, '0');
+         +  num('bfLoanPaid','Already paid before app', d.loanPaid, '0')
+         +  num('bfBal','Remaining balance ($)', d.balance, 'optional')
+         +  num('bfApr','APR (%)', d.apr, 'optional');
   html += '<label class="skiprow"><input type="checkbox" id="bfVaries"'+(d.varies?' checked':'')+'> Amount varies (electric, gas\u2026) \u2014 estimate from history</label>'
     + '<label class="skiprow" style="margin-bottom:8px"><input type="checkbox" id="bfAutopay"'+(d.autopay?' checked':'')+'> On autopay</label>'
     + '<div class="compbtns">'
@@ -2579,6 +2648,7 @@ document.addEventListener('click', (e)=>{
   }
   if (ds.btogsum!==undefined){ bstate.ui.sumOpen = !bstate.ui.sumOpen; bsave(); renderBills(); return; }
   if (ds.btogcards!==undefined){ bstate.ui.cardsOpen = !bstate.ui.cardsOpen; bsave(); renderBills(); return; }
+  if (ds.btogloans!==undefined){ bstate.ui.loansOpen = !bstate.ui.loansOpen; bsave(); renderBills(); return; }
   if (t.id==='bHistoryBtn'){ bstate.ui.yearOpen = !bstate.ui.yearOpen; bsave(); renderBills(); return; }
   if (ds.btogyear!==undefined){ bstate.ui.yearOpen = !bstate.ui.yearOpen; bsave(); renderBills(); return; }
   if (ds.bgotm!==undefined){
