@@ -219,6 +219,8 @@
   #screen-week.anim-prev{ animation:fromLeft .2s ease; }
   #screen-bills.anim-next{ animation:fromRight .2s ease; }
   #screen-bills.anim-prev{ animation:fromLeft .2s ease; }
+  #bParkPanel.anim-next{ animation:fromRight .2s ease; }
+  #bParkPanel.anim-prev{ animation:fromLeft .2s ease; }
   .day.b-menu{ border-color:var(--orange); }
   .daybody{ animation:slideDown .22s ease; }
   .breakdown:not(.hidden), .compare:not(.hidden){ animation:slideDown .22s ease; }
@@ -2728,13 +2730,14 @@ document.addEventListener('input', (e)=>{
 (() => {
   const zone = document.getElementById('screen-bills');
   if (!zone || !zone.addEventListener) return;
-  let x0=0, y0=0, tracking=false, lpTimer=null;
+  let x0=0, y0=0, tracking=false, lpTimer=null, inPark=false;
   const cancelLP = () => { if (lpTimer){ clearTimeout(lpTimer); lpTimer=null; } };
 
   zone.addEventListener('touchstart', (e)=>{
     if (e.target.closest('input') || e.target.closest('select')){ tracking=false; return; }
     const t = e.touches[0];
     x0=t.clientX; y0=t.clientY; tracking=true;
+    inPark = bParkExpanded===true && !!e.target.closest('#bParkPanel'); // swipe here = parking weeks, not months
     const head = e.target.closest('.dayhead');
     if (head && head.dataset.bopen!==undefined && !(bConfirm && bConfirm.iid===head.dataset.bopen)){
       const iid = head.dataset.bopen;
@@ -2761,7 +2764,17 @@ document.addEventListener('input', (e)=>{
     const t = e.changedTouches[0];
     const dx = t.clientX - x0, dy = t.clientY - y0;
     if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy)*1.5){
-      const dir = dx < 0 ? 1 : -1; // swipe left = next month
+      const dir = dx < 0 ? 1 : -1; // swipe left = forward
+      if (inPark){
+        const mon = bParkWeekStart ? fromKey(bParkWeekStart) : bMonday(new Date());
+        mon.setDate(mon.getDate() + dir*7);
+        if (mon > bMonday(new Date())) return; // no logging the future
+        bParkWeekStart = toKey(mon); bParkSel = null;
+        renderBills();
+        const pp = document.getElementById('bParkPanel');
+        if (pp){ pp.classList.remove('anim-next','anim-prev'); void pp.offsetWidth; pp.classList.add(dir > 0 ? 'anim-next' : 'anim-prev'); }
+        return;
+      }
       bMonth.setMonth(bMonth.getMonth() + dir);
       bOpen=null; bConfirm=null; bShowPaid=false; bShowSubs=false;
       renderBills();
