@@ -377,6 +377,7 @@
     <div id="bList"></div>
     <button class="repeatbar" id="bAddBill">+ Add a bill</button>
     <div id="bEditorBox"></div>
+    <div class="panel hidden" id="bCardsPanel"></div>
     <div class="panel hidden" id="bParkPanel"></div>
     <div class="panel hidden" id="bSummary"></div>
     <div class="panel hidden" id="bCrunch"></div>
@@ -1305,7 +1306,7 @@ document.getElementById('payCard').addEventListener('click', (e)=>{
 // the pay data ('paytracker:v1') — it only reads it for cash flow.
 // ==================================================================
 const BKEY = 'billtracker:v1';
-const BDEF = { templates:{}, payments:{}, overrides:{}, parking:{}, settings:{ paydayDow:5, palette:'ocean', payLag:1, dailyCost:0, parkSun:0 }, ui:{ snapDismissed:false, lastTab:'week', sumOpen:false, crunchOpen:false, yearOpen:false, stsOpen:false, backupSnooze:null } };
+const BDEF = { templates:{}, payments:{}, overrides:{}, parking:{}, settings:{ paydayDow:5, palette:'ocean', payLag:1, dailyCost:0, parkSun:0 }, ui:{ snapDismissed:false, lastTab:'week', sumOpen:false, crunchOpen:false, yearOpen:false, stsOpen:false, cardsOpen:false, backupSnooze:null } };
 let bstate = JSON.parse(JSON.stringify(BDEF));
 try {
   const bsaved = JSON.parse(localStorage.getItem(BKEY));
@@ -1754,6 +1755,7 @@ function renderBills(){
 
   bRenderSummary(insts, y, m);
   bRenderCrunch();
+  bRenderCards();
   bRenderPark();
   bRenderYear();
   document.getElementById('bEditorBox').innerHTML = (bEdit!==null && bDraft) ? bEditorHtml() : '';
@@ -2046,6 +2048,53 @@ function bParkWeekDays(){
   }
   return out;
 }
+// ---- Cards dashboard: the four cards side by side — balances, utilization,
+// interest, next due. A *view* grouping; the due list keeps them in its timeline.
+function bCardNextDue(tid){
+  const now = new Date(); now.setHours(0,0,0,0);
+  for (let off=0; off<3; off++){
+    const d = new Date(now.getFullYear(), now.getMonth()+off, 1);
+    for (const i of bInstancesFor(d.getFullYear(), d.getMonth())){
+      if (i.tid===tid && bRemaining(i)>0 && i.due >= now) return i;
+    }
+  }
+  return null;
+}
+function bRenderCards(){
+  const el = document.getElementById('bCardsPanel');
+  const cards = Object.entries(bstate.templates).filter(([,t])=>!t.archived && t.cat==='card');
+  if (!cards.length){ el.classList.add('hidden'); return; }
+  el.classList.remove('hidden');
+  let bal=0, lim=0, intMo=0;
+  for (const [,t] of cards){ bal += t.balance||0; lim += t.creditLimit||0; if (t.apr>0 && t.balance>0) intMo += t.balance*t.apr/100/12; }
+  const util = lim>0 ? Math.round(bal/lim*100) : 0;
+  const open = !!bstate.ui.cardsOpen;
+  const head = '<button class="b-paneltog" data-btogcards="1">'
+    + '<span class="eyebrow">\uD83D\uDCB3 Cards</span>'
+    + '<span class="b-togval">'+(bal>0 ? '$'+money(bal)+(lim>0?' \u00B7 '+util+'%':'') : cards.length+' card'+(cards.length===1?'':'s'))+' '+(open?'\u25BE':'\u25B8')+'</span></button>';
+  if (!open){ el.innerHTML = head; return; }
+  let html = head;
+  for (const [tid,t] of cards.sort((a,b)=>(b[1].balance||0)-(a[1].balance||0))){
+    const u = t.creditLimit>0 ? Math.round((t.balance||0)/t.creditLimit*100) : null;
+    const nd = bCardNextDue(tid);
+    const uCol = u===null ? 'var(--dim)' : (u<30?'var(--green)':u<=70?'var(--orange)':'var(--red)');
+    html += '<button class="b-tmplrow" style="width:100%; margin-top:8px" data-bedit="'+tid+'">'
+      + '<span style="text-align:left; min-width:0"><div class="b-tmplinfo">'+bIconFor(t)+' '+escapeHtml(t.name)+'</div>'
+      + '<div class="b-tmplsub">'+(nd ? 'next: $'+money(bExpAmt(nd))+' due '+bFmtDue(nd.due) : 'nothing due')
+      + (t.apr>0 && t.balance>0 ? ' \u00B7 \u2248$'+money(t.balance*t.apr/100/12)+'/mo interest' : '')+'</div></span>'
+      + '<span style="text-align:right"><div class="b-amt">'+(t.balance>0 ? '$'+money(t.balance) : '\u2014')+'</div>'
+      + (u!==null ? '<div class="b-tmplsub" style="color:'+uCol+'; font-weight:600">'+u+'% used</div>'
+                  : '<div class="b-tmplsub">tap to add balance</div>')+'</span></button>';
+  }
+  if (lim>0){
+    html += '<div class="b-prog" style="margin-top:12px"><div class="b-progfill'+(util<30?'':(util<=70?' warn':' bad'))+'" style="width:'+Math.min(100,util)+'%"></div></div>'
+      + '<div class="b-tmplsub" style="text-align:right">Total $'+money(bal)+' of $'+money(lim)+' ('+util+'%)'
+      + (intMo>0 ? ' \u00B7 interest \u2248$'+money(intMo)+'/mo' : '')+'</div>';
+  }
+  el.innerHTML = html;
+}
+
+// ---- Cards dashboard end ----
 function bRenderPark(){
   const el = document.getElementById('bParkPanel');
   const entries = Object.keys(bstate.parking).length;
@@ -2538,6 +2587,7 @@ document.addEventListener('click', (e)=>{
   }
   if (ds.btogsum!==undefined){ bstate.ui.sumOpen = !bstate.ui.sumOpen; bsave(); renderBills(); return; }
   if (ds.btogcrunch!==undefined){ bstate.ui.crunchOpen = !bstate.ui.crunchOpen; bsave(); renderBills(); return; }
+  if (ds.btogcards!==undefined){ bstate.ui.cardsOpen = !bstate.ui.cardsOpen; bsave(); renderBills(); return; }
   if (t.id==='bHistoryBtn'){ bstate.ui.yearOpen = !bstate.ui.yearOpen; bsave(); renderBills(); return; }
   if (ds.btogyear!==undefined){ bstate.ui.yearOpen = !bstate.ui.yearOpen; bsave(); renderBills(); return; }
   if (ds.bgotm!==undefined){
@@ -2729,13 +2779,24 @@ document.addEventListener('focusin', (e)=>{
 document.addEventListener('input', (e)=>{
   if (bDraft && e.target.id && e.target.id.startsWith('bf')) bReadDraftInputs();
   if (bDraft && e.target.id === 'bfName'){
-    // surgical DOM updates only — a full re-render here would steal the keyboard
     if (!bDraft.catTouched){
-      bDraft.cat = bCatFor(bDraft.name);
-      document.querySelectorAll('[data-bcat]').forEach(b=>b.classList.toggle('on', b.dataset.bcat===bDraft.cat));
-      const lbl = document.getElementById('bfCatLabel');
-      if (lbl) lbl.textContent = (BCATS[bDraft.cat]||BCATS.other).label;
+      const inferred = bCatFor(bDraft.name);
+      if (inferred !== bDraft.cat){
+        // category transition (e.g. "Apple Card" -> card): rebuild the editor so
+        // type-specific fields (limit, balance, APR...) actually appear — then
+        // hand the keyboard right back where it was
+        bDraft.cat = inferred;
+        const box = document.getElementById('bEditorBox');
+        if (box){
+          const caret = e.target.selectionStart;
+          box.innerHTML = bEditorHtml();
+          const nm = document.getElementById('bfName');
+          if (nm){ nm.focus(); try{ nm.setSelectionRange(caret, caret); }catch(_){ } }
+        }
+        return;
+      }
     }
+    // no category change: cheap surgical update of the icon hint only
     const ih = document.getElementById('bfIconAuto');
     if (ih) ih.textContent = bIconFor({name:bDraft.name, cat:bDraft.cat});
   }
