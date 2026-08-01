@@ -175,6 +175,7 @@
   .day.b-paidrow{opacity:.55;}
   .day.b-paidrow.open{opacity:1;}
   .b-name{font-size:15px; font-weight:600; text-align:left;}
+  #screen-bills .dayhead > span:first-child{text-align:left; min-width:0;}
   .b-sub{display:block; font-family:ui-monospace,Menlo,monospace; font-size:11px; color:var(--dim); text-align:left; margin-top:3px;}
   .b-sub .warn{color:var(--red);} .b-sub .good{color:var(--green);}
   .b-amt{font-family:ui-monospace,Menlo,monospace; font-size:17px; font-weight:700; font-variant-numeric:tabular-nums;}
@@ -1565,12 +1566,19 @@ function bLoanProg(tid, t){
   const total = t.loanTotal||0;
   return { made: Math.min(made,total), total, left: Math.max(0, total-made) };
 }
-// Payoff picture from whatever the user gave us: payment counts, or just a balance
+// Payoff picture from whatever the user gave us. Priority: the BALANCE is the
+// ground truth (it can't drift); payment counts fill in when there's no balance.
 function bLoanPayoff(tid, t){
-  const pr = bLoanProg(tid, t);
-  let left = null, made = pr.made, total = pr.total;
-  if (total > 0) left = pr.left;
-  else if (t.balance > 0 && (t.amt||0) > 0) left = Math.ceil(t.balance / t.amt);
+  const amt = t.amt||0;
+  let total = t.loanTotal||0;
+  let left = null, made = 0;
+  if (t.balance > 0 && amt > 0){
+    left = Math.ceil(t.balance / amt);
+    if (total > 0){ left = Math.min(left, total); made = Math.max(0, total - left); }
+  } else if (total > 0){
+    const pr = bLoanProg(tid, t);
+    left = pr.left; made = pr.made;
+  }
   if (left === null) return null;
   const d = new Date();
   if (t.freq==='weekly') d.setDate(d.getDate() + left*7);
@@ -2285,9 +2293,9 @@ function bRow(i, todayK){
   card.className = 'day'+(open?' open':'')+(isOver?' b-over':'')+(!isOver && i._tier===1?' b-t1':'')+(!isOver && i._tier===2?' b-t2':'')+(settled && !conf?' b-paidrow':'')
     +(conf && conf.mode==='del'?' confirm':'')+(conf && conf.mode==='menu'?' b-menu':'');
   let sub = bIconFor(i.t)+' '+bCatLabel(i.t) + (i.t.autopay ? ' \u00B7 autopay' : '');
-  if (i.t.cat==='loan' && i.t.loanTotal>0){
-    const pr = bLoanProg(i.tid, i.t);
-    sub += ' \u00B7 '+pr.made+'/'+pr.total+' paid';
+  if (i.t.cat==='loan'){
+    const po = bLoanPayoff(i.tid, i.t);
+    if (po && po.counted) sub += ' \u00B7 '+po.made+'/'+po.total+' paid';
   }
   if (creep && !i.pay) sub += ' \u00B7 <span class="warn">\u25B2 running '+creep+'% high</span>';
   card.innerHTML =
@@ -2370,9 +2378,11 @@ function bExpanded(i, amt){
   }
   let html = '<div class="breakdown" style="margin:0 12px 4px">'
     + lines.map(([l,v])=>'<div class="bd-line"><span>'+l+'</span><span>'+v+'</span></div>').join('');
-  if (t.cat==='loan' && t.loanTotal>0){
-    const pr = bLoanProg(i.tid, t);
-    html += '<div class="b-prog"><div class="b-progfill" style="width:'+Math.round(pr.made/Math.max(1,pr.total)*100)+'%"></div></div>';
+  if (t.cat==='loan'){
+    const po = bLoanPayoff(i.tid, t);
+    if (po && po.counted && po.total>0){
+      html += '<div class="b-prog"><div class="b-progfill" style="width:'+Math.round(po.made/Math.max(1,po.total)*100)+'%"></div></div>';
+    }
   }
   html += cardBarHtml;
   if (hist.length){
@@ -2620,7 +2630,7 @@ function bEditorHtml(){
          +  num('bfApr','APR (%)', d.apr, 'optional');
   if (d.cat==='loan')
     html += num('bfLoanTotal','Total # of payments', d.loanTotal, 'e.g. 24')
-         +  num('bfLoanPaid','Already paid before app', d.loanPaid, '0')
+         +  num('bfLoanPaid','Payments made before app (count)', d.loanPaid, 'e.g. 7')
          +  num('bfBal','Remaining balance ($)', d.balance, 'optional')
          +  num('bfApr','APR (%)', d.apr, 'optional');
   html += '<label class="skiprow"><input type="checkbox" id="bfVaries"'+(d.varies?' checked':'')+'> Amount varies (electric, gas\u2026) \u2014 estimate from history</label>'
@@ -2855,6 +2865,11 @@ document.addEventListener('click', (e)=>{
       loanTotal: parseInt(d.loanTotal)||0,
       loanPaid: parseInt(d.loanPaid)||0,
     };
+    // "Already paid" wants a COUNT; a value bigger than the total is clearly dollars — convert it
+    if (tmpl.loanTotal>0 && tmpl.loanPaid>tmpl.loanTotal && tmpl.amt>0){
+      tmpl.loanPaid = Math.round(parseFloat(d.loanPaid)/tmpl.amt);
+    }
+    if (tmpl.loanTotal>0) tmpl.loanPaid = Math.min(tmpl.loanPaid, tmpl.loanTotal);
     const prevT = (bEdit!=='new' && bstate.templates[bEdit]) ? bstate.templates[bEdit] : null;
     tmpl.balanceDate = (tmpl.balance>0 && (!prevT || (prevT.balance||0)!==tmpl.balance)) ? bTodayKey() : (prevT ? prevT.balanceDate : undefined);
     if (bEdit==='new'){
