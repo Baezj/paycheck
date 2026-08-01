@@ -169,6 +169,8 @@
   .day.b-t1{border-left:4px solid var(--orange);}
   .day.b-t2{border-left:4px solid var(--line2, var(--dim));}
   .b-grouplabel.hot{color:var(--orange);}
+  .b-glbtn{width:100%; background:none; padding:0; display:flex; justify-content:space-between; align-items:center; text-align:left;}
+  .b-divider{height:1px; background:var(--line); margin:10px 2px 18px;}
   .b-duetag.t1{color:var(--orange); font-weight:600;}
   .day.b-paidrow{opacity:.55;}
   .day.b-paidrow.open{opacity:1;}
@@ -199,7 +201,7 @@
   [data-theme="light"] input[type="date"]{color-scheme:light;}
   .b-quickrow{display:flex; flex-wrap:wrap; gap:6px; margin:10px 0;}
   .b-quick{font-family:ui-monospace,Menlo,monospace; font-size:12px; font-weight:600; padding:9px 12px; border-radius:16px; background:var(--card); border:1px dashed var(--line); color:var(--text);}
-  .b-paidcollapse{width:100%; background:var(--card); border:1px solid var(--line); border-radius:12px; padding:13px 16px; font-family:ui-monospace,Menlo,monospace; font-size:13px; color:var(--dim); text-align:left; display:flex; justify-content:space-between;}
+  .b-paidcollapse{width:100%; background:var(--card); border:1px solid var(--line); border-radius:12px; padding:13px 16px; margin-bottom:8px; font-family:ui-monospace,Menlo,monospace; font-size:13px; color:var(--dim); text-align:left; display:flex; justify-content:space-between;}
   .b-paneltog{width:100%; display:flex; justify-content:space-between; align-items:center; background:none; padding:0;}
   .b-togval{font-family:ui-monospace,Menlo,monospace; font-size:12px; color:var(--dim); font-variant-numeric:tabular-nums;}
   .b-togval.warn{color:var(--red);}
@@ -379,6 +381,7 @@
     <div id="bList"></div>
     <div id="bEditorBox"></div>
     <button id="bAddBill" class="b-fab" aria-label="Add a bill">+</button>
+    <div class="b-divider"></div>
     <div class="panel hidden" id="bCardsPanel"></div>
     <div class="panel hidden" id="bLoansPanel"></div>
     <div class="panel hidden" id="bParkPanel"></div>
@@ -1743,30 +1746,34 @@ function renderBills(){
   }
   if (subs.length){
     if (bShowSubs){
-      addGroup('Subscriptions', subs, '');
+      const gl = document.createElement('button');
+      gl.className='b-grouplabel b-glbtn'; gl.dataset.bhidesubs='1';
+      gl.innerHTML = '<span>Subscriptions</span><span>\u25BE</span>';
+      list.appendChild(gl);
+      for (const i of subs) list.appendChild(bRow(i, todayK));
     } else {
       const tot = subs.reduce((s,i)=>s+bExpAmt(i),0);
-      const gl = document.createElement('div');
-      gl.className='b-grouplabel'; gl.textContent='Subscriptions';
       const row = document.createElement('button');
       row.className = 'b-paidcollapse';
       row.dataset.bshowsubs = '1';
-      row.innerHTML = '<span>\uD83D\uDCFA '+subs.length+' small bill'+(subs.length===1?'':'s')+' \u00B7 tap to show</span><span>$'+money(tot)+'</span>';
-      list.appendChild(gl); list.appendChild(row);
+      row.innerHTML = '<span>\uD83D\uDCFA Subscriptions ('+subs.length+') \u00B7 tap to show</span><span>$'+money(tot)+'</span>';
+      list.appendChild(row);
     }
   }
   if (paid.length){
     if (bShowPaid){
-      addGroup('Paid \u2713', paid, '');
+      const gl = document.createElement('button');
+      gl.className='b-grouplabel b-glbtn'; gl.dataset.bhidepaid='1';
+      gl.innerHTML = '<span>Paid \u2713</span><span>\u25BE</span>';
+      list.appendChild(gl);
+      for (const i of paid) list.appendChild(bRow(i, todayK));
     } else {
       const tot = paid.reduce((s,i)=>s+bExpAmt(i),0);
       const row = document.createElement('button');
       row.className = 'b-paidcollapse';
       row.dataset.bshowpaid = '1';
       row.innerHTML = '<span>\u2713 Paid ('+paid.length+') \u00B7 tap to show</span><span class="good">$'+money(tot)+'</span>';
-      const gl = document.createElement('div');
-      gl.className='b-grouplabel'; gl.textContent='Paid';
-      list.appendChild(gl); list.appendChild(row);
+      list.appendChild(row);
     }
   }
 
@@ -2628,6 +2635,8 @@ document.addEventListener('click', (e)=>{
   }
   if (ds.bshowpaid!==undefined){ bShowPaid = true; renderBills(); return; }
   if (ds.bshowsubs!==undefined){ bShowSubs = true; renderBills(); return; }
+  if (ds.bhidesubs!==undefined){ bShowSubs = false; renderBills(); return; }
+  if (ds.bhidepaid!==undefined){ bShowPaid = false; renderBills(); return; }
   if (ds.bcancelmenu!==undefined){ bConfirm=null; renderBills(); return; }
   if (ds.bqpay!==undefined){
     const inst = bFindInst(ds.bqpay);
