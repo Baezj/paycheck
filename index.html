@@ -2292,7 +2292,7 @@ function bExpanded(i, amt){
   const lines = [];
   lines.push(['Due', bFmtDue(i.due)+' \u00B7 '+(BFREQS[t.freq]||t.freq)]);
   if (t.autopay) lines.push(['Autopay','On \u2014 just confirm it went through']);
-  if (t.cat==='card' && t.stmtDay) lines.push(['Statement closes','the '+t.stmtDay+bOrd(t.stmtDay)+' of the month']);
+  if (t.cat==='card' && t.stmtDay) lines.push(['Statement closes', t.stmtDay>=31 ? 'the last day of the month' : 'the '+t.stmtDay+bOrd(t.stmtDay)+' of the month']);
   let cardBarHtml = '';
   if (t.cat==='card' && (t.creditLimit>0 || t.balance>0)){
     if (t.creditLimit>0){
@@ -2554,7 +2554,8 @@ function bEditorHtml(){
     + '</div></div>'
     + num('bfAmt','Amount ($)', d.amt, '0.00');
   if (d.freq==='monthly' || d.freq==='quarterly' || d.freq==='yearly')
-    html += num('bfDueDay','Due on day (1\u201331)', d.dueDay);
+    html += num('bfDueDay','Due on day (1\u201331)', d.dueDay)
+         +  '<div class="b-tmplsub" style="text-align:right; margin:-4px 0 8px">31 = always the last day \u2014 short months adjust automatically</div>';
   if (isNew && (d.freq==='monthly' || d.freq==='quarterly')){
     if (!d.startTouched) d.startNext = (parseInt(d.dueDay)||1) < new Date().getDate(); // day already passed? assume next month
     html += '<div class="comprow" style="margin-bottom:8px"><label>First due</label><div class="seg">'
@@ -2571,7 +2572,7 @@ function bEditorHtml(){
     html += '<div class="comprow" style="margin-bottom:8px"><label for="bfAnchor">'+(d.freq==='once'?'Due date':'First due date')+'</label>'
       + '<input class="compinput" id="bfAnchor" type="date" style="width:160px" value="'+d.anchor+'"></div>';
   if (d.cat==='card')
-    html += num('bfStmt','Statement closes (day)', d.stmtDay, 'optional')
+    html += num('bfStmt','Statement closes (day, 31 = last)', d.stmtDay, 'optional')
          +  num('bfLimit','Credit limit ($)', d.creditLimit, 'optional')
          +  num('bfBal','Current balance ($)', d.balance, 'optional')
          +  num('bfApr','APR (%)', d.apr, 'optional');
