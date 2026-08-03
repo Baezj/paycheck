@@ -2133,13 +2133,28 @@ function bRenderLoans(){
       sub = po.counted ? po.made+'/'+po.total+' paid' : '\u2248'+po.left+' left';
       sub += po.left>0 ? ' \u00B7 done '+BMONTHS[po.date.getMonth()]+' '+po.date.getFullYear() : ' \u00B7 \uD83C\uDF89 done';
     }
-    if (t.apr>0 && t.balance>0) sub += ' \u00B7 \u2248$'+money(t.balance*t.apr/100/12)+'/mo int';
-    html += '<button class="b-tmplrow" style="width:100%; margin-top:8px" data-bedit="'+tid+'">'
+    const isOpen = bLoanOpen === tid;
+    html += '<button class="b-tmplrow" style="width:100%; margin-top:8px'+(isOpen?'; border-color:var(--orange); border-radius:12px 12px 0 0; margin-bottom:0':'')+'" data-bloanview="'+tid+'">'
       + '<span style="text-align:left; min-width:0"><div class="b-tmplinfo">'+bIconFor(t)+' '+escapeHtml(t.name)+'</div>'
       + '<div class="b-tmplsub">'+sub+'</div></span>'
       + '<span style="text-align:right"><div class="b-amt">'+(t.balance>0 ? '$'+money(t.balance) : '\u2014')+'</div>'
       + '<div class="b-tmplsub">$'+money(bMonthlyEq(t))+'/mo</div></span></button>';
-    if (po && po.counted && po.total>0){
+    if (isOpen){
+      const hist = bPayHist(tid).filter(r=>!r.skip && (r.amt||0)>0).slice(-3).reverse();
+      const nd = bCardNextDue(tid); // works for any template: next unpaid instance
+      html += '<div style="border:1px solid var(--orange); border-top:none; border-radius:0 0 12px 12px; padding:12px 14px 14px; margin-bottom:8px">'
+        + '<div class="breakdown" style="margin:0">'
+        + (t.balance>0 ? '<div class="bd-line"><span>Remaining</span><span>$'+money(t.balance)+(t.balanceDate?' \u00B7 updated '+bFmtDue(fromKey(t.balanceDate)):'')+'</span></div>' : '')
+        + (po ? '<div class="bd-line"><span>Progress</span><span>'+(po.counted ? po.made+' of '+po.total+' \u00B7 '+po.left+' left' : '\u2248'+po.left+' payments left')+'</span></div>' : '')
+        + (po && po.left>0 ? '<div class="bd-line"><span>Paid off</span><span>'+bFmtDue(po.date)+' '+po.date.getFullYear()+' \u2014 frees $'+money(bMonthlyEq(t))+'/mo</span></div>' : '')
+        + (t.apr>0 && t.balance>0 ? '<div class="bd-line"><span>Interest</span><span>\u2248 $'+money(t.balance*t.apr/100/12)+'/mo at '+t.apr+'%</span></div>' : '')
+        + (nd ? '<div class="bd-line"><span>Next payment</span><span>$'+money(bExpAmt(nd))+' due '+bFmtDue(nd.due)+'</span></div>' : '')
+        + hist.map(r=>'<div class="bd-line"><span class="dimtext">paid '+bFmtDue(fromKey(r.date||r.dueKey))+'</span><span class="dimtext">$'+money(r.amt||0)+'</span></div>').join('')
+        + '</div>'
+        + (po && po.counted && po.total>0 ? '<div class="b-prog" style="margin-top:10px"><div class="b-progfill" style="width:'+Math.round(po.made/Math.max(1,po.total)*100)+'%"></div></div>' : '')
+        + '<div class="compbtns" style="margin-top:10px"><button class="smallbtn" data-bedit="'+tid+'">Edit bill</button></div>'
+        + '</div>';
+    } else if (po && po.counted && po.total>0){
       html += '<div class="b-prog" style="margin:6px 2px 2px"><div class="b-progfill" style="width:'+Math.round(po.made/Math.max(1,po.total)*100)+'%"></div></div>';
     }
   }
@@ -2182,13 +2197,28 @@ function bRenderCards(){
     const u = t.creditLimit>0 ? Math.round((t.balance||0)/t.creditLimit*100) : null;
     const nd = bCardNextDue(tid);
     const uCol = u===null ? 'var(--dim)' : (u<30?'var(--green)':u<=70?'var(--orange)':'var(--red)');
-    html += '<button class="b-tmplrow" style="width:100%; margin-top:8px" data-bedit="'+tid+'">'
+    const isOpen = bCardOpen === tid;
+    html += '<button class="b-tmplrow" style="width:100%; margin-top:8px'+(isOpen?'; border-color:var(--orange); border-radius:12px 12px 0 0; margin-bottom:0':'')+'" data-bcardview="'+tid+'">'
       + '<span style="text-align:left; min-width:0"><div class="b-tmplinfo">'+bIconFor(t)+' '+escapeHtml(t.name)+'</div>'
-      + '<div class="b-tmplsub">'+(nd ? 'next: $'+money(bExpAmt(nd))+' due '+bFmtDue(nd.due) : 'nothing due')
-      + (t.apr>0 && t.balance>0 ? ' \u00B7 \u2248$'+money(t.balance*t.apr/100/12)+'/mo interest' : '')+'</div></span>'
+      + '<div class="b-tmplsub">'+(nd ? 'next: $'+money(bExpAmt(nd))+' due '+bFmtDue(nd.due) : 'nothing due')+'</div></span>'
       + '<span style="text-align:right"><div class="b-amt">'+(t.balance>0 ? '$'+money(t.balance) : '\u2014')+'</div>'
       + (u!==null ? '<div class="b-tmplsub" style="color:'+uCol+'; font-weight:600">'+u+'% used</div>'
-                  : '<div class="b-tmplsub">tap to add balance</div>')+'</span></button>';
+                  : '<div class="b-tmplsub">tap for details</div>')+'</span></button>';
+    if (isOpen){
+      const hist = bPayHist(tid).filter(r=>!r.skip && (r.amt||0)>0).slice(-3).reverse();
+      html += '<div style="border:1px solid var(--orange); border-top:none; border-radius:0 0 12px 12px; padding:12px 14px 14px; margin-bottom:8px">'
+        + '<div class="breakdown" style="margin:0">'
+        + (t.balance>0 ? '<div class="bd-line"><span>Balance</span><span>$'+money(t.balance)+(t.balanceDate?' \u00B7 updated '+bFmtDue(fromKey(t.balanceDate)):'')+'</span></div>' : '')
+        + (t.creditLimit>0 ? '<div class="bd-line"><span>Limit / available</span><span>$'+money(t.creditLimit)+' \u00B7 $'+money(Math.max(0,t.creditLimit-(t.balance||0)))+' free</span></div>' : '')
+        + (t.apr>0 && t.balance>0 ? '<div class="bd-line"><span>Interest</span><span>\u2248 $'+money(t.balance*t.apr/100/12)+'/mo at '+t.apr+'%</span></div>' : '')
+        + (t.stmtDay ? '<div class="bd-line"><span>Statement closes</span><span>'+(t.stmtDay>=31?'last day of month':'the '+t.stmtDay+bOrd(t.stmtDay))+'</span></div>' : '')
+        + (nd ? '<div class="bd-line"><span>Next payment</span><span>$'+money(bExpAmt(nd))+' due '+bFmtDue(nd.due)+'</span></div>' : '')
+        + hist.map(r=>'<div class="bd-line"><span class="dimtext">paid '+bFmtDue(fromKey(r.date||r.dueKey))+'</span><span class="dimtext">$'+money(r.amt||0)+'</span></div>').join('')
+        + '</div>'
+        + (u!==null ? '<div class="b-prog" style="margin-top:10px"><div class="b-progfill'+(u<30?'':(u<=70?' warn':' bad'))+'" style="width:'+Math.min(100,u)+'%"></div></div>' : '')
+        + '<div class="compbtns" style="margin-top:10px"><button class="smallbtn" data-bedit="'+tid+'">Edit bill</button></div>'
+        + '</div>';
+    }
   }
   if (lim>0){
     html += '<div class="b-prog" style="margin-top:12px"><div class="b-progfill'+(util<30?'':(util<=70?' warn':' bad'))+'" style="width:'+Math.min(100,util)+'%"></div></div>'
@@ -2200,6 +2230,8 @@ function bRenderCards(){
 
 // ---- Cards dashboard end ----
 let bPayParkOpen = null; // Pay-tab quick logger: null = auto (open until today is logged)
+let bCardOpen = null;    // card expanded in the Cards dashboard
+let bLoanOpen = null;    // loan expanded in the Loans dashboard
 function bRenderPayPark(){
   const el = document.getElementById('bPayPark');
   if (!el) return;
@@ -2719,6 +2751,8 @@ document.addEventListener('click', (e)=>{
   if (ds.btogsum!==undefined){ bstate.ui.sumOpen = !bstate.ui.sumOpen; bsave(); renderBills(); return; }
   if (ds.btogcards!==undefined){ bstate.ui.cardsOpen = !bstate.ui.cardsOpen; bsave(); renderBills(); return; }
   if (ds.btogloans!==undefined){ bstate.ui.loansOpen = !bstate.ui.loansOpen; bsave(); renderBills(); return; }
+  if (ds.bcardview!==undefined){ bCardOpen = (bCardOpen===ds.bcardview ? null : ds.bcardview); renderBills(); return; }
+  if (ds.bloanview!==undefined){ bLoanOpen = (bLoanOpen===ds.bloanview ? null : ds.bloanview); renderBills(); return; }
   if (t.id==='bHistoryBtn'){ bstate.ui.yearOpen = !bstate.ui.yearOpen; bsave(); renderBills(); return; }
   if (ds.btogyear!==undefined){ bstate.ui.yearOpen = !bstate.ui.yearOpen; bsave(); renderBills(); return; }
   if (ds.bgotm!==undefined){
