@@ -1806,6 +1806,7 @@ function renderBills(){
   bRenderCards();
   bRenderLoans();
   bRenderPark();
+  bRenderPayPark(); // unconditional — the Pay-tab mirror must repaint no matter what state the Bills panel is in
   bRenderYear();
   document.getElementById('bEditorBox').innerHTML = (bEdit!==null && bDraft) ? bEditorHtml() : '';
   const fab = document.getElementById('bAddBill');
@@ -2340,7 +2341,6 @@ function bRenderPark(){
     + (missing>0 ? ' \u00B7 <span class="b-creep">'+missing+' worked day'+(missing===1?'':'s')+' not logged</span>' : '')
     + '</div>';
   el.innerHTML = html;
-  bRenderPayPark();
 }
 
 function bRow(i, todayK){
