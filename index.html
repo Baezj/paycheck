@@ -2148,11 +2148,14 @@ function bRenderLoans(){
         + (po ? '<div class="bd-line"><span>Progress</span><span>'+(po.counted ? po.made+' of '+po.total+' \u00B7 '+po.left+' left' : '\u2248'+po.left+' payments left')+'</span></div>' : '')
         + (po && po.left>0 ? '<div class="bd-line"><span>Paid off</span><span>'+bFmtDue(po.date)+' '+po.date.getFullYear()+' \u2014 frees $'+money(bMonthlyEq(t))+'/mo</span></div>' : '')
         + (t.apr>0 && t.balance>0 ? '<div class="bd-line"><span>Interest</span><span>\u2248 $'+money(t.balance*t.apr/100/12)+'/mo at '+t.apr+'%</span></div>' : '')
+        + (bPaidThisMonth(tid) ? '<div class="bd-line"><span class="good">\u2713 '+BMONTHS[new Date().getMonth()]+' paid</span><span class="good">$'+money(bPaidThisMonth(tid).pay.amt||0)+'</span></div>' : '')
         + (nd ? '<div class="bd-line"><span>Next payment</span><span>$'+money(bExpAmt(nd))+' due '+bFmtDue(nd.due)+'</span></div>' : '')
         + hist.map(r=>'<div class="bd-line"><span class="dimtext">paid '+bFmtDue(fromKey(r.date||r.dueKey))+'</span><span class="dimtext">$'+money(r.amt||0)+'</span></div>').join('')
         + '</div>'
         + (po && po.counted && po.total>0 ? '<div class="b-prog" style="margin-top:10px"><div class="b-progfill" style="width:'+Math.round(po.made/Math.max(1,po.total)*100)+'%"></div></div>' : '')
-        + '<div class="compbtns" style="margin-top:10px"><button class="smallbtn" data-bedit="'+tid+'">Edit bill</button></div>'
+        + '<div class="compbtns" style="margin-top:10px">'
+        + (nd ? '<button class="smallbtn primary" data-bqpay="'+nd.iid+'">\u2713 Mark paid $'+money(bExpAmt(nd))+'</button>' : '')
+        + '<button class="smallbtn" data-bedit="'+tid+'">Edit bill</button></div>'
         + '</div>';
     } else if (po && po.counted && po.total>0){
       html += '<div class="b-prog" style="margin:6px 2px 2px"><div class="b-progfill" style="width:'+Math.round(po.made/Math.max(1,po.total)*100)+'%"></div></div>';
@@ -2169,6 +2172,13 @@ function bRenderLoans(){
 
 // ---- Cards dashboard: the four cards side by side — balances, utilization,
 // interest, next due. A *view* grouping; the due list keeps them in its timeline.
+function bPaidThisMonth(tid){
+  const now = new Date();
+  for (const i of bInstancesFor(now.getFullYear(), now.getMonth())){
+    if (i.tid===tid && i.pay && !i.pay.skip && bRemaining(i)<=0) return i;
+  }
+  return null;
+}
 function bCardNextDue(tid){
   const now = new Date(); now.setHours(0,0,0,0);
   for (let off=0; off<3; off++){
@@ -2212,11 +2222,14 @@ function bRenderCards(){
         + (t.creditLimit>0 ? '<div class="bd-line"><span>Limit / available</span><span>$'+money(t.creditLimit)+' \u00B7 $'+money(Math.max(0,t.creditLimit-(t.balance||0)))+' free</span></div>' : '')
         + (t.apr>0 && t.balance>0 ? '<div class="bd-line"><span>Interest</span><span>\u2248 $'+money(t.balance*t.apr/100/12)+'/mo at '+t.apr+'%</span></div>' : '')
         + (t.stmtDay ? '<div class="bd-line"><span>Statement closes</span><span>'+(t.stmtDay>=31?'last day of month':'the '+t.stmtDay+bOrd(t.stmtDay))+'</span></div>' : '')
+        + (bPaidThisMonth(tid) ? '<div class="bd-line"><span class="good">\u2713 '+BMONTHS[new Date().getMonth()]+' paid</span><span class="good">$'+money(bPaidThisMonth(tid).pay.amt||0)+'</span></div>' : '')
         + (nd ? '<div class="bd-line"><span>Next payment</span><span>$'+money(bExpAmt(nd))+' due '+bFmtDue(nd.due)+'</span></div>' : '')
         + hist.map(r=>'<div class="bd-line"><span class="dimtext">paid '+bFmtDue(fromKey(r.date||r.dueKey))+'</span><span class="dimtext">$'+money(r.amt||0)+'</span></div>').join('')
         + '</div>'
         + (u!==null ? '<div class="b-prog" style="margin-top:10px"><div class="b-progfill'+(u<30?'':(u<=70?' warn':' bad'))+'" style="width:'+Math.min(100,u)+'%"></div></div>' : '')
-        + '<div class="compbtns" style="margin-top:10px"><button class="smallbtn" data-bedit="'+tid+'">Edit bill</button></div>'
+        + '<div class="compbtns" style="margin-top:10px">'
+        + (nd ? '<button class="smallbtn primary" data-bqpay="'+nd.iid+'">\u2713 Mark paid $'+money(bExpAmt(nd))+'</button>' : '')
+        + '<button class="smallbtn" data-bedit="'+tid+'">Edit bill</button></div>'
         + '</div>';
     }
   }
