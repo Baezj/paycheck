@@ -773,28 +773,40 @@ function renderHistory(){
     const avgG=g/count, avgN=n/count, avgH=h/count;
     const sg = state.settings.savingsGoal||0;
 
-    // Expected total for THIS year: what's earned so far + avg week x remaining unlogged weeks
-    const loggedKeys = new Set(rows.filter(r=>r.d.getFullYear()===year).map(r=>r.k));
+    // Expected total for THIS year. The in-progress week is NOT a finished week:
+    // averages come from completed weeks only, and this week counts as one of the
+    // "weeks left" (projected at your average — or at what's already logged, if higher).
+    const curK = toKey(weekEndSat(new Date()));
+    const yearRows = rows.filter(r=>r.d.getFullYear()===year);
+    const done = yearRows.filter(r=>r.k!==curK || r.verified);
+    const curRow = yearRows.find(r=>r.k===curK && !r.verified) || null;
+    const dG = done.reduce((s,r)=>s+r.p.gross,0), dN = done.reduce((s,r)=>s+r.useNet,0);
+    const dAvgG = done.length ? dG/done.length : avgG;
+    const dAvgN = done.length ? dN/done.length : avgN;
+    const completedKeys = new Set(done.map(r=>r.k));
     let remaining = 0;
     for (let d = weekEndSat(new Date()); d.getFullYear()===year; d.setDate(d.getDate()+7)){
-      if (!loggedKeys.has(toKey(d))) remaining++;
+      if (!completedKeys.has(toKey(d))) remaining++;
     }
-    const expG = g + avgG*remaining, expN = n + avgN*remaining;
+    // if the partial week has already out-earned the average, believe the hours
+    const topG = curRow ? Math.max(0, curRow.p.gross - dAvgG) : 0;
+    const topN = curRow ? Math.max(0, curRow.useNet - dAvgN) : 0;
+    const expG = dG + dAvgG*remaining + topG, expN = dN + dAvgN*remaining + topN;
 
     const cells = [
       ['Expected '+year+' gross','$'+money(expG),'var(--text)'],
       ['Expected '+year+' take-home','$'+money(expN),'var(--green)'],
-      ['Full-year pace (gross)','$'+money(avgG*52),'var(--dim)'],
-      ['Full-year pace (take-home)','$'+money(avgN*52),'var(--dim)'],
-      ['Avg hrs / week', (Math.round(avgH*10)/10).toString(),'var(--text)'],
-      ['Avg check','$'+money(avgN),'var(--dim)'],
+      ['Full-year pace (gross)','$'+money(dAvgG*52),'var(--dim)'],
+      ['Full-year pace (take-home)','$'+money(dAvgN*52),'var(--dim)'],
+      ['Avg hrs / week', (Math.round((done.length ? done.reduce((s,r)=>s+r.th,0)/done.length : avgH)*10)/10).toString(),'var(--text)'],
+      ['Avg check','$'+money(dAvgN),'var(--dim)'],
     ];
     if (sg>0){
       cells.push(['Saved / year at $'+money(sg)+'/wk','$'+money(sg*52),'var(--green)']);
-      cells.push(['To live on / week','$'+money(Math.max(0,avgN-sg)),'var(--text)']);
+      cells.push(['To live on / week','$'+money(Math.max(0,dAvgN-sg)),'var(--text)']);
     }
     projGrid.innerHTML = cells.map(([l,v,c])=>'<div><div class="glabel">'+l+'</div><div class="gval" style="color:'+c+'">'+v+'</div></div>').join('');
-    projNote.textContent = 'Expected '+year+' = earned so far + your average week \u00D7 '+remaining+' weeks left this year. Full-year pace = what a complete year at this rate would look like.';
+    projNote.textContent = 'Expected '+year+' = completed weeks + your average \u00D7 '+remaining+' weeks left (this week counts as one of them, at least at what\u2019s already logged). Averages use finished weeks only.';
   } else {
     projGrid.innerHTML = '';
     projNote.textContent = 'Log a week or two and this will project your yearly pay.';
