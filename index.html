@@ -291,6 +291,7 @@
       <div class="eyebrow" id="ytdTitle">Totals</div>
       <div class="grid2" id="ytdGrid"></div>
     </div>
+    <div class="panel hidden" id="bParkHist"></div>
     <div class="panel">
       <div class="eyebrow">Yearly projection</div>
       <div class="grid2" id="projGrid"></div>
@@ -807,7 +808,7 @@ function renderHistory(){
     const maxN = Math.max(...chartRows.map(r=>r.useNet));
     document.getElementById('chart').innerHTML = chartRows.map(r=>{
       const hpct = Math.max(3, Math.round(r.useNet/maxN*100));
-      return '<button class="bar" data-goto="'+r.k+'" aria-label="Week of '+fmtShort(r.d)+', $'+money(r.useNet)+'">'
+      return '<button class="bar" data-goto="'+r.k+'" aria-label="Week ending '+fmtShort(r.d)+', $'+money(r.useNet)+'">'
         + '<span class="chartval">'+(Math.round(r.useNet/10)*10>=1000 ? (r.useNet/1000).toFixed(1)+'k' : Math.round(r.useNet))+'</span>'
         + '<span class="barfill'+(r.verified?' v':'')+'" style="height:'+hpct+'%"></span>'
         + '<span class="barlabel">'+fmtShort(r.d)+'</span></button>';
@@ -823,7 +824,7 @@ function renderHistory(){
     ? '<p class="empty-msg">No weeks logged yet. Add hours on the This Week tab and they\u2019ll show up here.</p>'
     : rows.map(r =>
       '<button class="histrow" data-goto="'+r.k+'">'
-      + '<span><div class="histweek">Week of '+fmtShort(r.d)+'</div>'
+      + '<span><div class="histweek">Week ending '+fmtShort(r.d)+'</div>'
       + '<div class="histsub">'+r.th+' hrs'+(r.p.ot>0?' \u00B7 '+r.p.ot+' OT':'')+(r.p.dt>0?' \u00B7 '+r.p.dt+' 2x':'')+(r.hasNotes?' \u00B7 \uD83D\uDCDD':'')
       + (r.verified?' \u00B7 <span class="verified">\u2713 verified</span>':'')+'</div></span>'
       + '<span class="histnet">$'+money(r.useNet)+'</span></button>'
@@ -1311,7 +1312,7 @@ document.getElementById('payCard').addEventListener('click', (e)=>{
 // the pay data ('paytracker:v1') — it only reads it for cash flow.
 // ==================================================================
 const BKEY = 'billtracker:v1';
-const BDEF = { templates:{}, payments:{}, overrides:{}, parking:{}, settings:{ paydayDow:5, palette:'ocean', payLag:1, dailyCost:0, parkSun:0, gasWeekly:0 }, ui:{ snapDismissed:false, lastTab:'week', sumOpen:false, crunchOpen:false, yearOpen:false, stsOpen:false, cardsOpen:false, loansOpen:false, backupSnooze:null } };
+const BDEF = { templates:{}, payments:{}, overrides:{}, parking:{}, settings:{ paydayDow:5, palette:'ocean', payLag:1, dailyCost:0, parkSun:0, gasWeekly:0 }, ui:{ snapDismissed:false, lastTab:'week', sumOpen:false, crunchOpen:false, yearOpen:false, stsOpen:false, cardsOpen:false, loansOpen:false, parkHistOpen:false, backupSnooze:null } };
 let bstate = JSON.parse(JSON.stringify(BDEF));
 try {
   const bsaved = JSON.parse(localStorage.getItem(BKEY));
@@ -1807,6 +1808,7 @@ function renderBills(){
   bRenderLoans();
   bRenderPark();
   bRenderPayPark(); // unconditional — the Pay-tab mirror must repaint no matter what state the Bills panel is in
+  bRenderParkHistory(); // and the History-tab stats stay in step with every entry
   bRenderYear();
   document.getElementById('bEditorBox').innerHTML = (bEdit!==null && bDraft) ? bEditorHtml() : '';
   const fab = document.getElementById('bAddBill');
@@ -2244,6 +2246,49 @@ function bRenderCards(){
 
 // ---- Cards dashboard end ----
 let bPayParkOpen = null; // Pay-tab quick logger: null = auto (open until today is logged)
+function bRenderParkHistory(){
+  const el = document.getElementById('bParkHist');
+  if (!el) return;
+  const yr = new Date().getFullYear();
+  const byMonth = {}; // m -> {sum, days}
+  const rateCount = {};
+  let total = 0, days = 0;
+  for (const [k,v] of Object.entries(bstate.parking)){
+    const d = fromKey(k);
+    if (d.getFullYear() !== yr) continue;
+    const m = d.getMonth();
+    (byMonth[m] = byMonth[m] || {sum:0, days:0});
+    byMonth[m].sum += v; byMonth[m].days++;
+    total += v; days++;
+    if (v>0) rateCount[v] = (rateCount[v]||0)+1;
+  }
+  if (!days){ el.classList.add('hidden'); return; }
+  el.classList.remove('hidden');
+  const open = !!bstate.ui.parkHistOpen;
+  const head = '<button class="b-paneltog" data-btogparkhist="1">'
+    + '<span class="eyebrow">\uD83C\uDD7F\uFE0F Parking \u00B7 '+yr+'</span>'
+    + '<span class="b-togval">$'+money(total)+' ('+days+'d) '+(open?'\u25BE':'\u25B8')+'</span></button>';
+  if (!open){ el.innerHTML = head; return; }
+  const months = Object.keys(byMonth).map(Number).sort((a,b)=>a-b);
+  const maxSum = Math.max(...months.map(m=>byMonth[m].sum), 1);
+  const monthsElapsed = new Date().getMonth() + 1;
+  const pace = total / monthsElapsed * 12;
+  let topRate = null;
+  for (const [r,c] of Object.entries(rateCount)) if (!topRate || c>topRate[1]) topRate = [r,c];
+  el.innerHTML = head
+    + '<div class="grid2" style="margin-top:12px">'
+    + '<div><div class="glabel">Spent this year</div><div class="gval">$'+money(total)+'</div></div>'
+    + '<div><div class="glabel">Days parked</div><div class="gval">'+days+'</div></div>'
+    + '<div><div class="glabel">Average / day</div><div class="gval">$'+money(total/days)+'</div></div>'
+    + '<div><div class="glabel">On pace for</div><div class="gval">\u2248 $'+money(pace)+'/yr</div></div>'
+    + '</div>'
+    + '<div class="breakdown" style="margin-top:12px">'
+    + months.map(m=>'<div class="bd-line" style="align-items:center"><span style="width:44px; flex:none">'+BMONTHS[m]+'</span>'
+      + '<span style="flex:1; margin:0 10px"><span class="b-prog" style="display:block; margin:0"><span class="b-progfill" style="display:block; height:100%; width:'+Math.round(byMonth[m].sum/maxSum*100)+'%"></span></span></span>'
+      + '<span style="flex:none">$'+money(byMonth[m].sum)+' \u00B7 '+byMonth[m].days+'d</span></div>').join('')
+    + '</div>'
+    + (topRate ? '<div class="projnote">Most common rate: $'+money(+topRate[0])+' ('+topRate[1]+' day'+(topRate[1]===1?'':'s')+').</div>' : '');
+}
 let bCardOpen = null;    // card expanded in the Cards dashboard
 let bLoanOpen = null;    // loan expanded in the Loans dashboard
 function bRenderPayPark(){
@@ -2736,7 +2781,7 @@ document.addEventListener('click', (e)=>{
   const ds = t.dataset;
 
   // Remember which tab you're on, so reopening the app lands you back there
-  if (ds.screen){ bstate.ui.lastTab = ds.screen; bsave(); if (ds.screen==='week') bRenderPayPark(); /* no return — the main listener does the switching */ }
+  if (ds.screen){ bstate.ui.lastTab = ds.screen; bsave(); if (ds.screen==='week') bRenderPayPark(); if (ds.screen==='history') bRenderParkHistory(); /* no return — the main listener does the switching */ }
 
   if (ds.bshowpaid!==undefined){ bShowPaid = true; renderBills(); return; }
   if (ds.bshowsubs!==undefined){ bShowSubs = true; renderBills(); return; }
@@ -2902,6 +2947,7 @@ document.addEventListener('click', (e)=>{
   if (ds.bpal!==undefined){ bstate.settings.palette = ds.bpal; bsave(); bApplyPalette(); renderBills(); return; }
   if (ds.blag!==undefined){ bstate.settings.payLag = +ds.blag; bsave(); renderBills(); return; }
   if (ds.bparksun!==undefined){ bstate.settings.parkSun = +ds.bparksun; bsave(); renderBills(); return; }
+  if (ds.btogparkhist!==undefined){ bstate.ui.parkHistOpen = !bstate.ui.parkHistOpen; bsave(); bRenderParkHistory(); return; }
   if (ds.bnew!==undefined){ bEdit='new'; bDraft=bBlankDraft(); bConfirmDel=false; renderBills(); return; }
   if (ds.bedit!==undefined){
     const t0 = bstate.templates[ds.bedit];
@@ -3078,6 +3124,7 @@ document.addEventListener('input', (e)=>{
 applyTheme();
 bApplyPalette();
 bRenderPayPark();
+bRenderParkHistory();
 // Reopen on whichever tab was in use when the app was last closed
 if (bstate.ui.lastTab && bstate.ui.lastTab !== 'week'){
   const lastTabBtn = document.querySelector('.tab[data-screen="'+bstate.ui.lastTab+'"]');
