@@ -171,6 +171,9 @@
   .b-grouplabel.hot{color:var(--orange);}
   .b-glbtn{width:100%; background:none; padding:0; display:flex; justify-content:space-between; align-items:center; text-align:left;}
   .b-divider{height:1px; background:var(--line); margin:10px 2px 18px;}
+  .b-qpayask{display:flex; gap:8px; align-items:center; flex:1; min-width:0;}
+  .b-qpayask input{flex:1; min-width:64px; width:auto; text-align:right;}
+  .b-qpayask .smallbtn{flex:none; padding:9px 14px; margin:0;}
   .b-duetag.t1{color:var(--orange); font-weight:600;}
   .day.b-paidrow{opacity:.55;}
   .day.b-paidrow.open{opacity:1;}
@@ -2191,8 +2194,8 @@ function bRenderLoans(){
 function bQPayAskHtml(iid){
   const inst = bFindInst(iid);
   const rem = inst ? bRemaining(inst) : 0;
-  return '<span class="b-qpayask" style="display:inline-flex; gap:6px; align-items:center">'
-    + '<input class="compinput" type="number" inputmode="decimal" step="0.01" style="width:92px" value="'+(Math.round(rem*100)/100)+'">'
+  return '<span class="b-qpayask">'
+    + '<input class="compinput" type="number" inputmode="decimal" step="0.01" value="'+(Math.round(rem*100)/100)+'">'
     + '<button class="smallbtn primary" data-bqconfirm="'+iid+'">\u2713 Pay</button>'
     + '<button class="smallbtn" data-bqcancel="1">\u2715</button></span>';
 }
@@ -2444,15 +2447,19 @@ function bRow(i, todayK){
     + (settled ? (i.pay.skip ? 'this month' : 'paid '+bFmtPaidDate(i.pay)) : (isOver?'was due ':'due ')+bFmtDue(i.due))+'</span></span>'
     + '</button>'
     + (conf && conf.mode==='menu' ?
-      '<div class="confirmbody">'
-      + '<span class="confirmtext" style="color:var(--text); min-width:0">'+escapeHtml(i.t.name)+'</span>'
-      + '<button class="confirmbtn keep" data-bcancelmenu="1">Cancel</button>'
-      + (bRemaining(i)<=0 && i.pay
-        ? '<button class="confirmbtn keep" data-bqundo="'+i.iid+'">Undo</button>'
-        : (bQPayAsk===i.iid ? bQPayAskHtml(i.iid)
-          : '<button class="confirmbtn" style="background:var(--green); color:#14181D" data-bqpay="'+i.iid+'">\u2713 Paid</button>'))
-      + '<button class="confirmbtn del" data-bdelask="1">Delete</button>'
-      + '</div>' : '')
+      (bQPayAsk===i.iid
+        ? '<div class="confirmbody">'
+          + '<span class="confirmtext" style="color:var(--text); flex:none">Pay '+escapeHtml(i.t.name)+'</span>'
+          + bQPayAskHtml(i.iid)
+          + '</div>'
+        : '<div class="confirmbody">'
+          + '<span class="confirmtext" style="color:var(--text); min-width:0">'+escapeHtml(i.t.name)+'</span>'
+          + '<button class="confirmbtn keep" data-bcancelmenu="1">Cancel</button>'
+          + (bRemaining(i)<=0 && i.pay
+            ? '<button class="confirmbtn keep" data-bqundo="'+i.iid+'">Undo</button>'
+            : '<button class="confirmbtn" style="background:var(--green); color:#14181D" data-bqpay="'+i.iid+'">\u2713 Paid</button>')
+          + '<button class="confirmbtn del" data-bdelask="1">Delete</button>'
+          + '</div>') : '')
     + (conf && conf.mode==='del' ?
       '<div class="confirmbody">'
       + '<span class="confirmtext">Delete '+escapeHtml(i.t.name)+' and stop tracking it? Past payments are kept.</span>'
