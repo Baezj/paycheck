@@ -2270,6 +2270,66 @@ function bRenderCards(){
 
 // ---- Cards dashboard end ----
 let bPayParkOpen = null; // Pay-tab quick logger: null = auto (open until today is logged)
+// Tax-ready parking log: a clean printable document a preparer can actually read
+function bParkTaxHtml(yr){
+  const entries = Object.entries(bstate.parking)
+    .filter(([k,v]) => fromKey(k).getFullYear()===yr && v>0)
+    .sort((a,b)=>a[0]<b[0]?-1:1);
+  const byMonth = {};
+  let total = 0;
+  for (const [k,v] of entries){
+    const m = fromKey(k).getMonth();
+    (byMonth[m] = byMonth[m] || []).push([k,v]);
+    total += v;
+  }
+  const DOWFULL = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  const MFULL = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  const fmtLong = k => { const d=fromKey(k); return DOWFULL[d.getDay()]+', '+MFULL[d.getMonth()]+' '+d.getDate(); };
+  let body = '';
+  for (const m of Object.keys(byMonth).map(Number).sort((a,b)=>a-b)){
+    const rows = byMonth[m];
+    const sub = rows.reduce((s,[,v])=>s+v,0);
+    body += '<h3>'+MFULL[m]+' '+yr+'</h3><table>'
+      + rows.map(([k,v])=>'<tr><td>'+fmtLong(k)+'</td><td class="amt">$'+money(v)+'</td></tr>').join('')
+      + '<tr class="sub"><td>'+MFULL[m]+' subtotal \u00B7 '+rows.length+' day'+(rows.length===1?'':'s')+'</td><td class="amt">$'+money(sub)+'</td></tr>'
+      + '</table>';
+  }
+  return '<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">'
+    + '<title>Parking Expenses '+yr+'</title><style>'
+    + 'body{font:15px/1.5 -apple-system,Segoe UI,Roboto,sans-serif; color:#111; background:#fff; max-width:640px; margin:0 auto; padding:32px 20px;}'
+    + 'h1{font-size:22px; margin:0 0 2px;} .meta{color:#666; font-size:13px; margin-bottom:22px;}'
+    + '.sumbox{border:1px solid #ccc; border-radius:8px; padding:14px 16px; display:flex; gap:26px; flex-wrap:wrap; margin-bottom:8px;}'
+    + '.sumbox b{display:block; font-size:19px;} .sumbox span{font-size:12px; color:#666; text-transform:uppercase; letter-spacing:.05em;}'
+    + 'h3{font-size:14px; margin:24px 0 6px; border-bottom:2px solid #111; padding-bottom:4px;}'
+    + 'table{width:100%; border-collapse:collapse;} td{padding:5px 2px; border-bottom:1px solid #eee; font-size:14px;}'
+    + '.amt{text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap;}'
+    + '.sub td{font-weight:700; border-bottom:none; border-top:1.5px solid #999; padding-top:7px;}'
+    + '.grand{margin-top:26px; border-top:3px double #111; padding-top:10px; display:flex; justify-content:space-between; font-size:17px; font-weight:700;}'
+    + '.foot{margin-top:26px; color:#666; font-size:12px; line-height:1.6;}'
+    + '@media print{ body{padding:0;} }'
+    + '</style></head><body>'
+    + '<h1>Parking Expense Log \u2014 '+yr+'</h1>'
+    + '<div class="meta">Work-related daily parking \u00B7 Generated '+fmtLong(bTodayKey())+', '+new Date().getFullYear()+'</div>'
+    + '<div class="sumbox">'
+    + '<div><span>Total</span><b>$'+money(total)+'</b></div>'
+    + '<div><span>Days</span><b>'+entries.length+'</b></div>'
+    + '<div><span>Average / day</span><b>$'+money(entries.length?total/entries.length:0)+'</b></div>'
+    + '</div>'
+    + body
+    + '<div class="grand"><span>Total \u00B7 '+yr+'</span><span>$'+money(total)+'</span></div>'
+    + '<div class="foot">Self-maintained log, recorded daily at the time of expense in a personal tracking app. '
+    + 'Entries are dated and can be cross-referenced against bank or card statements. '
+    + 'Prepared for tax-filing reference.</div>'
+    + '</body></html>';
+}
+function bParkTaxExport(){
+  const yr = new Date().getFullYear();
+  const blob = new Blob([bParkTaxHtml(yr)], {type:'text/html'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'parking-expenses-'+yr+'.html';
+  document.body.appendChild(a); a.click(); a.remove();
+}
 function bRenderParkHistory(){
   const el = document.getElementById('bParkHist');
   if (!el) return;
@@ -2311,7 +2371,8 @@ function bRenderParkHistory(){
       + '<span style="flex:1; margin:0 10px"><span class="b-prog" style="display:block; margin:0"><span class="b-progfill" style="display:block; height:100%; width:'+Math.round(byMonth[m].sum/maxSum*100)+'%"></span></span></span>'
       + '<span style="flex:none">$'+money(byMonth[m].sum)+' \u00B7 '+byMonth[m].days+'d</span></div>').join('')
     + '</div>'
-    + (topRate ? '<div class="projnote">Most common rate: $'+money(+topRate[0])+' ('+topRate[1]+' day'+(topRate[1]===1?'':'s')+').</div>' : '');
+    + (topRate ? '<div class="projnote">Most common rate: $'+money(+topRate[0])+' ('+topRate[1]+' day'+(topRate[1]===1?'':'s')+').</div>' : '')
+    + '<div class="compbtns" style="margin-top:10px"><button class="smallbtn" data-bparktax="1">\uD83D\uDCC4 Export for taxes</button></div>';
 }
 let bQPayAsk = null;     // instance mid quick-pay: asking how much was paid
 let bCardOpen = null;    // card expanded in the Cards dashboard
@@ -2987,6 +3048,7 @@ document.addEventListener('click', (e)=>{
   if (ds.blag!==undefined){ bstate.settings.payLag = +ds.blag; bsave(); renderBills(); return; }
   if (ds.bparksun!==undefined){ bstate.settings.parkSun = +ds.bparksun; bsave(); renderBills(); return; }
   if (ds.btogparkhist!==undefined){ bstate.ui.parkHistOpen = !bstate.ui.parkHistOpen; bsave(); bRenderParkHistory(); return; }
+  if (ds.bparktax!==undefined){ bParkTaxExport(); return; }
   if (ds.bnew!==undefined){ bEdit='new'; bDraft=bBlankDraft(); bConfirmDel=false; renderBills(); return; }
   if (ds.bedit!==undefined){
     const t0 = bstate.templates[ds.bedit];
