@@ -2169,7 +2169,7 @@ function bRenderLoans(){
         + '</div>'
         + (po && po.counted && po.total>0 ? '<div class="b-prog" style="margin-top:10px"><div class="b-progfill" style="width:'+Math.round(po.made/Math.max(1,po.total)*100)+'%"></div></div>' : '')
         + '<div class="compbtns" style="margin-top:10px">'
-        + (nd ? '<button class="smallbtn primary" data-bqpay="'+nd.iid+'">\u2713 Mark paid $'+money(bExpAmt(nd))+'</button>' : '')
+        + (nd ? (bQPayAsk===nd.iid ? bQPayAskHtml(nd.iid) : '<button class="smallbtn primary" data-bqpay="'+nd.iid+'">\u2713 Mark paid $'+money(bExpAmt(nd))+'</button>') : '')
         + '<button class="smallbtn" data-bedit="'+tid+'">Edit bill</button></div>'
         + '</div>';
     } else if (po && po.counted && po.total>0){
@@ -2187,6 +2187,15 @@ function bRenderLoans(){
 
 // ---- Cards dashboard: the four cards side by side — balances, utilization,
 // interest, next due. A *view* grouping; the due list keeps them in its timeline.
+// The quick-pay ask: amount prefilled with what's due — confirm, or type what you actually paid
+function bQPayAskHtml(iid){
+  const inst = bFindInst(iid);
+  const rem = inst ? bRemaining(inst) : 0;
+  return '<span class="b-qpayask" style="display:inline-flex; gap:6px; align-items:center">'
+    + '<input class="compinput" type="number" inputmode="decimal" step="0.01" style="width:92px" value="'+(Math.round(rem*100)/100)+'">'
+    + '<button class="smallbtn primary" data-bqconfirm="'+iid+'">\u2713 Pay</button>'
+    + '<button class="smallbtn" data-bqcancel="1">\u2715</button></span>';
+}
 function bPaidThisMonth(tid){
   const now = new Date();
   for (const i of bInstancesFor(now.getFullYear(), now.getMonth())){
@@ -2243,7 +2252,7 @@ function bRenderCards(){
         + '</div>'
         + (u!==null ? '<div class="b-prog" style="margin-top:10px"><div class="b-progfill'+(u<30?'':(u<=70?' warn':' bad'))+'" style="width:'+Math.min(100,u)+'%"></div></div>' : '')
         + '<div class="compbtns" style="margin-top:10px">'
-        + (nd ? '<button class="smallbtn primary" data-bqpay="'+nd.iid+'">\u2713 Mark paid $'+money(bExpAmt(nd))+'</button>' : '')
+        + (nd ? (bQPayAsk===nd.iid ? bQPayAskHtml(nd.iid) : '<button class="smallbtn primary" data-bqpay="'+nd.iid+'">\u2713 Mark paid $'+money(bExpAmt(nd))+'</button>') : '')
         + '<button class="smallbtn" data-bedit="'+tid+'">Edit bill</button></div>'
         + '</div>';
     }
@@ -2301,6 +2310,7 @@ function bRenderParkHistory(){
     + '</div>'
     + (topRate ? '<div class="projnote">Most common rate: $'+money(+topRate[0])+' ('+topRate[1]+' day'+(topRate[1]===1?'':'s')+').</div>' : '');
 }
+let bQPayAsk = null;     // instance mid quick-pay: asking how much was paid
 let bCardOpen = null;    // card expanded in the Cards dashboard
 let bLoanOpen = null;    // loan expanded in the Loans dashboard
 function bRenderPayPark(){
@@ -2439,7 +2449,8 @@ function bRow(i, todayK){
       + '<button class="confirmbtn keep" data-bcancelmenu="1">Cancel</button>'
       + (bRemaining(i)<=0 && i.pay
         ? '<button class="confirmbtn keep" data-bqundo="'+i.iid+'">Undo</button>'
-        : '<button class="confirmbtn" style="background:var(--green); color:#14181D" data-bqpay="'+i.iid+'">\u2713 Paid</button>')
+        : (bQPayAsk===i.iid ? bQPayAskHtml(i.iid)
+          : '<button class="confirmbtn" style="background:var(--green); color:#14181D" data-bqpay="'+i.iid+'">\u2713 Paid</button>'))
       + '<button class="confirmbtn del" data-bdelask="1">Delete</button>'
       + '</div>' : '')
     + (conf && conf.mode==='del' ?
@@ -2801,14 +2812,23 @@ document.addEventListener('click', (e)=>{
   if (ds.bhidepaid!==undefined){ bShowPaid = false; renderBills(); return; }
   if (ds.bcancelmenu!==undefined){ bConfirm=null; renderBills(); return; }
   if (ds.bqpay!==undefined){
-    const inst = bFindInst(ds.bqpay);
-    if (inst && bRemaining(inst)>0){
+    bQPayAsk = ds.bqpay; renderBills(); return; // ask how much first — prefilled with the remainder
+  }
+  if (ds.bqcancel!==undefined){ bQPayAsk=null; renderBills(); return; }
+  if (ds.bqconfirm!==undefined){
+    const wrap = t.closest('.b-qpayask');
+    const inp = wrap && wrap.querySelector('input');
+    const amt = inp ? parseFloat(inp.value) : NaN;
+    const inst = bFindInst(ds.bqconfirm);
+    if (inst && !isNaN(amt) && amt>0){
+      const rem = bRemaining(inst);
       const prev = inst.pay;
-      const total = (prev && prev.partial ? (prev.amt||0) : 0) + bRemaining(inst);
-      bstate.payments[ds.bqpay] = { amt: total, date: bTodayKey(), note: (prev && prev.note)||'' };
+      const base = (prev && prev.partial ? (prev.amt||0) : 0);
+      const isPartial = amt < rem - 0.005; // paid less than owed -> remainder stays due
+      bstate.payments[ds.bqconfirm] = { amt: base + amt, date: bTodayKey(), note: (prev && prev.note)||'', partial: isPartial };
       bsave();
     }
-    bConfirm=null; renderBills(); return;
+    bQPayAsk=null; bConfirm=null; renderBills(); return;
   }
   if (ds.bqundo!==undefined){ delete bstate.payments[ds.bqundo]; bsave(); bConfirm=null; renderBills(); return; }
   if (ds.bdelask!==undefined){ if (bConfirm) bConfirm = { iid:bConfirm.iid, mode:'del' }; renderBills(); return; }
@@ -2906,7 +2926,7 @@ document.addEventListener('click', (e)=>{
 
   if (t.id==='bPrevMonth' || t.id==='bNextMonth'){
     bMonth.setMonth(bMonth.getMonth() + (t.id==='bNextMonth'?1:-1));
-    bOpen=null; bConfirm=null; bShowPaid=false; bShowSubs=false; renderBills(); return;
+    bOpen=null; bConfirm=null; bQPayAsk=null; bShowPaid=false; bShowSubs=false; renderBills(); return;
   }
   if (t.id==='bMonthHome'){
     bMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
