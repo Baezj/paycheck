@@ -1449,7 +1449,7 @@ let bManageOpen = false;
 let bEdit = null;          // template id being edited, or 'new'
 let bDraft = null;         // editor working values
 let bConfirmDel = false;   // delete confirmation inside editor
-let bShowPaid = false;     // paid group starts collapsed to keep the view focused
+let bShowPaid = true; // paid bills visible by default — fold via the group header     // paid group starts collapsed to keep the view focused
 let bShowSubs = false;     // subscriptions group starts collapsed too
 let bConfirm = null;       // long-press menu: {iid, mode:'menu'|'del'}
 let bLpFired = false;      // suppresses the tap that trails a long-press
@@ -2933,11 +2933,11 @@ document.addEventListener('click', (e)=>{
 
   if (t.id==='bPrevMonth' || t.id==='bNextMonth'){
     bMonth.setMonth(bMonth.getMonth() + (t.id==='bNextMonth'?1:-1));
-    bOpen=null; bConfirm=null; bQPayAsk=null; bShowPaid=false; bShowSubs=false; renderBills(); return;
+    bOpen=null; bConfirm=null; bQPayAsk=null; bShowPaid=true; bShowSubs=false; renderBills(); return;
   }
   if (t.id==='bMonthHome'){
     bMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
-    bOpen=null; bConfirm=null; bShowPaid=false; bShowSubs=false; renderBills(); return;
+    bOpen=null; bConfirm=null; bShowPaid=true; bShowSubs=false; renderBills(); return;
   }
   if (t.id==='bManageBtn'){ bManageOpen=!bManageOpen; if(!bManageOpen){bConfirmDel=false;} renderBills(); return; }
   if (t.id==='bAddBill'){
@@ -3151,7 +3151,7 @@ document.addEventListener('input', (e)=>{
         return;
       }
       bMonth.setMonth(bMonth.getMonth() + dir);
-      bOpen=null; bConfirm=null; bShowPaid=false; bShowSubs=false;
+      bOpen=null; bConfirm=null; bShowPaid=true; bShowSubs=false;
       renderBills();
       zone.classList.remove('anim-next','anim-prev');
       void zone.offsetWidth;
