@@ -840,9 +840,9 @@ function renderHistory(){
     : rows.map(r =>
       '<button class="histrow" data-goto="'+r.k+'">'
       + '<span><div class="histweek">Week ending '+fmtShort(r.d)+'</div>'
-      + '<div class="histsub">'+r.th+' hrs'+(r.p.ot>0?' \u00B7 '+r.p.ot+' OT':'')+(r.p.dt>0?' \u00B7 '+r.p.dt+' 2x':'')+(r.hasNotes?' \u00B7 \uD83D\uDCDD':'')
-      + (r.verified?' \u00B7 <span class="verified">\u2713 verified</span>':'')+'</div></span>'
-      + '<span class="histnet">$'+money(r.useNet)+'</span></button>'
+      + '<div class="histsub">'+r.th+' hrs'+(r.p.ot>0?' \u00B7 '+r.p.ot+' OT':'')+(r.p.dt>0?' \u00B7 '+r.p.dt+' 2x':'')+(r.hasNotes?' \u00B7 \uD83D\uDCDD':'')+'</div></span>'
+      + '<span style="text-align:right"><div class="histnet">$'+money(r.useNet)+'</div>'
+      + (r.verified?'<div class="verified" style="font-size:11.5px; margin-top:2px">\u2713 verified</div>':'')+'</span></button>'
     ).join('');
 }
 
