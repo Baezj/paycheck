@@ -2336,7 +2336,7 @@ function bRenderParkHistory(){
   const yr = new Date().getFullYear();
   const byMonth = {}; // m -> {sum, days}
   const rateCount = {};
-  let total = 0, days = 0;
+  let total = 0, days = 0, firstKey = null;
   for (const [k,v] of Object.entries(bstate.parking)){
     const d = fromKey(k);
     if (d.getFullYear() !== yr) continue;
@@ -2344,6 +2344,7 @@ function bRenderParkHistory(){
     (byMonth[m] = byMonth[m] || {sum:0, days:0});
     byMonth[m].sum += v; byMonth[m].days++;
     total += v; days++;
+    if (!firstKey || k < firstKey) firstKey = k;
     if (v>0) rateCount[v] = (rateCount[v]||0)+1;
   }
   if (!days){ el.classList.add('hidden'); return; }
@@ -2355,8 +2356,14 @@ function bRenderParkHistory(){
   if (!open){ el.innerHTML = head; return; }
   const months = Object.keys(byMonth).map(Number).sort((a,b)=>a-b);
   const maxSum = Math.max(...months.map(m=>byMonth[m].sum), 1);
-  const monthsElapsed = new Date().getMonth() + 1;
-  const pace = total / monthsElapsed * 12;
+  // Project from HIS pattern over the span he's actually been logging —
+  // not from calendar months that predate the log (the old way punished a mid-year start)
+  const today = new Date(); today.setHours(0,0,0,0);
+  const spanWeeks = Math.max(1, (today - fromKey(firstKey)) / 864e5 / 7);
+  const perWeek = total / spanWeeks;
+  const daysPerWeek = days / spanWeeks;
+  const remWeeks = Math.max(0, (new Date(yr,11,31) - today) / 864e5 / 7);
+  const expected = total + perWeek * remWeeks;
   let topRate = null;
   for (const [r,c] of Object.entries(rateCount)) if (!topRate || c>topRate[1]) topRate = [r,c];
   el.innerHTML = head
@@ -2364,14 +2371,15 @@ function bRenderParkHistory(){
     + '<div><div class="glabel">Spent this year</div><div class="gval">$'+money(total)+'</div></div>'
     + '<div><div class="glabel">Days parked</div><div class="gval">'+days+'</div></div>'
     + '<div><div class="glabel">Average / day</div><div class="gval">$'+money(total/days)+'</div></div>'
-    + '<div><div class="glabel">On pace for</div><div class="gval">\u2248 $'+money(pace)+'/yr</div></div>'
+    + '<div><div class="glabel">Expected by Dec 31</div><div class="gval">\u2248 $'+money(expected)+'</div></div>'
     + '</div>'
     + '<div class="breakdown" style="margin-top:12px">'
     + months.map(m=>'<div class="bd-line" style="align-items:center"><span style="width:44px; flex:none">'+BMONTHS[m]+'</span>'
       + '<span style="flex:1; margin:0 10px"><span class="b-prog" style="display:block; margin:0"><span class="b-progfill" style="display:block; height:100%; width:'+Math.round(byMonth[m].sum/maxSum*100)+'%"></span></span></span>'
       + '<span style="flex:none">$'+money(byMonth[m].sum)+' \u00B7 '+byMonth[m].days+'d</span></div>').join('')
     + '</div>'
-    + (topRate ? '<div class="projnote">Most common rate: $'+money(+topRate[0])+' ('+topRate[1]+' day'+(topRate[1]===1?'':'s')+').</div>' : '')
+    + '<div class="projnote">Your pattern: \u2248$'+money(perWeek)+'/wk ('+(Math.round(daysPerWeek*10)/10)+' days \u00D7 $'+money(days?total/days:0)+') since '+bFmtDue(fromKey(firstKey))+'.'
+    + (topRate ? ' Most common rate: $'+money(+topRate[0])+' ('+topRate[1]+' day'+(topRate[1]===1?'':'s')+').' : '')+'</div>'
     + '<div class="compbtns" style="margin-top:10px"><button class="smallbtn" data-bparktax="1">\uD83D\uDCC4 Export for taxes</button></div>';
 }
 let bQPayAsk = null;     // instance mid quick-pay: asking how much was paid
