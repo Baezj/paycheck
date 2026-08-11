@@ -506,8 +506,8 @@ function calcPayRaw(hoursArr, s){
 }
 // Auto-calibration offset: avg (raw est net − actual net) across verified weeks where gross matched
 function calibration(){
-  let sum=0, count=0;
-  for (const v of Object.values(state.weeks)){
+  let sum=0, count=0; const diffs=[];
+  for (const [,v] of Object.entries(state.weeks).sort((a,b)=>a[0]<b[0]?-1:1)){
     if (!v.actual || !(v.actual.net>0)) continue;
     if (v.actual.skip) continue; // marked unusual (makeup pay, bonus) — don't learn from it
     const th = (v.hours||[]).reduce((a,b)=>a+b,0);
@@ -518,10 +518,15 @@ function calibration(){
     // No gross entered + suspiciously large gap = likely an hours mismatch — don't learn from it
     if (!(v.actual.gross>0) && Math.abs(raw.net - v.actual.net) > 10) continue;
     sum += raw.net - v.actual.net; count++;
+    diffs.push(raw.net - v.actual.net);
   }
   const offset = count>0 ? sum/count : 0;
+  // the receipts: how far off were raw estimates, and how far off after tuning?
+  const avgAbsRaw = count>0 ? diffs.reduce((s,d)=>s+Math.abs(d),0)/count : 0;
+  const avgAbsTuned = count>0 ? diffs.reduce((s,d)=>s+Math.abs(d-offset),0)/count : 0;
+  const lastErr = count>0 ? diffs[diffs.length-1] : 0;
   // sanity clamp — never let a bad entry swing estimates wildly
-  return { offset: Math.max(-25, Math.min(25, offset)), count };
+  return { offset: Math.max(-25, Math.min(25, offset)), count , avgAbsRaw, avgAbsTuned, lastErr };
 }
 // Calibrated calc — what we display for estimates
 function calcPay(hoursArr, s){
@@ -959,9 +964,20 @@ function renderSettings(){
   ).join('');
 
   const c = calibration();
-  document.getElementById('calibInfo').innerHTML = c.count>0
-    ? 'Auto-calibration: estimates adjusted by <b>'+(c.offset>=0?'\u2212':'+')+'$'+money(Math.abs(c.offset))+'</b> based on <b>'+c.count+'</b> verified check'+(c.count===1?'':'s')+'. Every real check you enter makes it sharper.'
-    : 'No verified checks yet. Enter your actual net on a week (\u2713 Actual check) and estimates will self-tune.';
+  if (c.count>0){
+    const pct = c.avgAbsRaw > 0.01 ? Math.max(0, Math.round((1 - c.avgAbsTuned/c.avgAbsRaw)*100)) : 0;
+    document.getElementById('calibInfo').innerHTML =
+      '<div class="eyebrow" style="margin-bottom:8px">Estimate accuracy \u2014 the receipts</div>'
+      + '<div class="bd-line"><span>Learned from</span><span><b>'+c.count+'</b> verified check'+(c.count===1?'':'s')+'</span></div>'
+      + '<div class="bd-line"><span>Tuning applied</span><span>'+(Math.abs(c.offset)<0.005?'none needed':'estimates '+(c.offset>=0?'lowered':'raised')+' by <b>$'+money(Math.abs(c.offset))+'</b>/check')+'</span></div>'
+      + '<div class="bd-line"><span>Untuned, avg miss</span><span>$'+money(c.avgAbsRaw)+'</span></div>'
+      + '<div class="bd-line"><span>With tuning, avg miss</span><span class="good"><b>$'+money(c.avgAbsTuned)+'</b>'+(pct>0?' \u00B7 '+pct+'% tighter':'')+'</span></div>'
+      + '<div class="bd-line"><span>Last check, raw miss</span><span>'+(Math.abs(c.lastErr)<0.005?'<span class="good">exact</span>':'$'+money(Math.abs(c.lastErr)))+'</span></div>'
+      + '<div class="dimtext" style="margin-top:8px">Measured against your own verified checks \u2014 every \u2713 Actual check re-scores it. Checks with suspicious gaps are excluded from learning, not hidden from you.</div>';
+  } else {
+    document.getElementById('calibInfo').innerHTML =
+      'No verified checks yet. Enter your actual net on a week (\u2713 Actual check) and estimates will self-tune \u2014 this box will then show exactly how accurate they\u2019ve become.';
+  }
   syncSunSeg();
   updateQuickCalc();
   updateQuickRev();
