@@ -607,7 +607,13 @@ function renderWeek(){
   document.getElementById('thisWeekTag').classList.toggle('hidden', toKey(weekEndSat(new Date())) !== toKey(weekEnd));
   const wni = document.getElementById('weekNoteInput');
   if (document.activeElement !== wni) wni.value = (week && week.weekNote) || ''; // don't clobber mid-typing
-  document.getElementById('netPay').textContent = '$' + money(p.net);
+  const hideNet = !!state.settings.hideTakeHome;
+  document.getElementById('netPay').textContent = hideNet ? '$ \u2022\u2022\u2022\u2022\u2022' : '$' + money(p.net);
+  document.getElementById('netPay').style.opacity = hideNet ? '.55' : '';
+  if (hideNet){
+    const bd = document.getElementById('breakdown'); if (bd) bd.classList.add('hidden');
+    const sl = document.getElementById('savingsLine'); if (sl) sl.classList.add('hidden');
+  }
   document.getElementById('totalHrs').textContent = total + ' hrs';
   const otEl = document.getElementById('otHrs');
   const flags = [];
@@ -3295,6 +3301,30 @@ if (bstate.ui.lastTab && bstate.ui.lastTab !== 'week'){
   const lastTabBtn = document.querySelector('.tab[data-screen="'+bstate.ui.lastTab+'"]');
   if (lastTabBtn) lastTabBtn.click();
 }
+// Long-press the take-home amount to hide/show it — hours stay visible for
+// showing the boss, the wage stays your business. Survives relaunch (it's a setting).
+(function(){
+  const el = document.getElementById('netPay');
+  if (!el || !el.addEventListener) return;
+  let t = null, fired = false;
+  const start = () => { fired = false; t = setTimeout(()=>{
+    fired = true;
+    state.settings.hideTakeHome = !state.settings.hideTakeHome;
+    save(); renderWeek();
+    if (navigator.vibrate) navigator.vibrate(10);
+  }, 450); };
+  const cancel = () => { if (t){ clearTimeout(t); t = null; } };
+  el.addEventListener('touchstart', start, {passive:true});
+  el.addEventListener('touchend', cancel);
+  el.addEventListener('touchmove', cancel, {passive:true});
+  el.addEventListener('touchcancel', cancel);
+  el.addEventListener('mousedown', start);
+  el.addEventListener('mouseup', cancel);
+  el.addEventListener('mouseleave', cancel);
+  el.addEventListener('click', (e)=>{ if (fired){ e.stopPropagation(); e.preventDefault(); fired=false; } }, true);
+  el.addEventListener('contextmenu', (e)=>e.preventDefault());
+})();
+
 // Auto-open today's card when viewing the current week — but only if it still needs
 // hours (skip Sunday if toggled off; Saturdays never auto-open; logged days stay folded)
 if (toKey(weekEndSat(new Date())) === toKey(weekEnd)){
