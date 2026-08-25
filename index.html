@@ -506,7 +506,7 @@ function calcPayRaw(hoursArr, s){
 }
 // Auto-calibration offset: avg (raw est net − actual net) across verified weeks where gross matched
 function calibration(){
-  let sum=0, count=0; const diffs=[];
+  let sum=0, count=0; const diffs=[]; const actuals=[];
   for (const [,v] of Object.entries(state.weeks).sort((a,b)=>a[0]<b[0]?-1:1)){
     if (!v.actual || !(v.actual.net>0)) continue;
     if (v.actual.skip) continue; // marked unusual (makeup pay, bonus) — don't learn from it
@@ -519,14 +519,16 @@ function calibration(){
     if (!(v.actual.gross>0) && Math.abs(raw.net - v.actual.net) > 10) continue;
     sum += raw.net - v.actual.net; count++;
     diffs.push(raw.net - v.actual.net);
+    actuals.push(v.actual.net);
   }
   const offset = count>0 ? sum/count : 0;
   // the receipts: how far off were raw estimates, and how far off after tuning?
   const avgAbsRaw = count>0 ? diffs.reduce((s,d)=>s+Math.abs(d),0)/count : 0;
   const avgAbsTuned = count>0 ? diffs.reduce((s,d)=>s+Math.abs(d-offset),0)/count : 0;
   const lastErr = count>0 ? diffs[diffs.length-1] : 0;
+  const allWhole = count>=3 && actuals.every(a => Math.abs(a - Math.round(a)) < 0.005);
   // sanity clamp — never let a bad entry swing estimates wildly
-  return { offset: Math.max(-25, Math.min(25, offset)), count , avgAbsRaw, avgAbsTuned, lastErr };
+  return { offset: Math.max(-25, Math.min(25, offset)), count , avgAbsRaw, avgAbsTuned, lastErr, allWhole };
 }
 // Calibrated calc — what we display for estimates
 function calcPay(hoursArr, s){
@@ -536,6 +538,12 @@ function calcPay(hoursArr, s){
   p.fwh += c.offset;
   p.net -= c.offset;
   p.deducted += c.offset;
+  if (state.settings.roundNet){
+    // payroll pays whole dollars — five verified checks proved it
+    const r = Math.round(p.net);
+    p.deducted += p.net - r;
+    p.net = r;
+  }
   return p;
 }
 function ratesForW(week){ return (week && week.rates) ? { ...DEFAULTS, ...week.rates } : state.settings; }
@@ -913,7 +921,8 @@ function qcNetFor(reg, ot, dt){
   const gross = reg*s.baseRate + ot*s.otRate + dt*(s.sundayRate||s.baseRate*2);
   const c = calibration();
   const fwh = calcFWH(gross) + c.offset;
-  const net = gross - fwh - gross*.062 - gross*.0145 - Math.max(0,gross*.05-1.92) - gross*.0046 - hrs*s.duesPerHr - hrs*s.lplPerHr;
+  let net = gross - fwh - gross*.062 - gross*.0145 - Math.max(0,gross*.05-1.92) - gross*.0046 - hrs*s.duesPerHr - hrs*s.lplPerHr;
+  if (state.settings.roundNet) net = Math.round(net);
   return { gross, net, hrs };
 }
 function updateQuickCalc(){
@@ -975,7 +984,9 @@ function renderSettings(){
     + fields.map(([k,label])=>
     '<div class="setrow"><label for="set-'+k+'">'+label+'</label>'
     + '<input id="set-'+k+'" type="number" inputmode="decimal" step="0.001" value="'+state.settings[k]+'" data-key="'+k+'"></div>'
-  ).join('');
+  ).join('')
+    + '<div class="setrow"><label for="set-roundNet">Employer rounds net to nearest $1</label>'
+    + '<input id="set-roundNet" type="checkbox" style="width:22px; height:22px; accent-color:var(--orange)"'+(state.settings.roundNet?' checked':'')+' data-boolkey="roundNet"></div>';
 
   const c = calibration();
   if (c.count>0){
@@ -987,6 +998,10 @@ function renderSettings(){
       + '<div class="bd-line"><span>Untuned, avg miss</span><span>$'+money(c.avgAbsRaw)+'</span></div>'
       + '<div class="bd-line"><span>With tuning, avg miss</span><span class="good"><b>$'+money(c.avgAbsTuned)+'</b>'+(pct>0?' \u00B7 '+pct+'% tighter':'')+'</span></div>'
       + '<div class="bd-line"><span>Last check, raw miss</span><span>'+(Math.abs(c.lastErr)<0.005?'<span class="good">exact</span>':'$'+money(Math.abs(c.lastErr)))+'</span></div>'
+      + (c.allWhole && !state.settings.roundNet
+          ? '<div class="bd-line" style="margin-top:6px"><span class="warn">\u26A0 Every check is a whole dollar</span><span class="warn">turn on rounding below</span></div>' : '')
+      + (state.settings.roundNet
+          ? '<div class="bd-line" style="margin-top:6px"><span class="good">\u2713 Whole-dollar rounding on</span><span class="good">matches your stub</span></div>' : '')
       + '<div class="dimtext" style="margin-top:8px">Measured against your own verified checks \u2014 every \u2713 Actual check re-scores it. Checks with suspicious gaps are excluded from learning, not hidden from you.</div>';
   } else {
     document.getElementById('calibInfo').innerHTML =
@@ -1312,6 +1327,7 @@ document.addEventListener('input', (e)=>{
 });
 document.addEventListener('change', (e)=>{
   const el = e.target;
+  if (el.dataset && el.dataset.boolkey){ state.settings[el.dataset.boolkey] = el.checked; save(); renderWeek(); renderSettings(); return; }
   if (el.dataset && el.dataset.sh){ updateShiftCalc(); return; }
   if (el.dataset && el.dataset.qc){ updateQuickCalc(); return; }
   if (el.dataset && el.dataset.qcr){ updateQuickRev(); return; }
