@@ -1,0 +1,1684 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Bills">
+<link rel="apple-touch-icon" href="bills-icon.png">
+<title>Bills</title>
+<style>
+  :root{
+    --bg:#14181D; --card:#1D232B; --up:#242C36; --line:#313A46;
+    --text:#EDF0F3; --dim:#8B95A3; --orange:#FF7A1A; --orange-text:#14181D;
+    --green:#3DDC84; --red:#FF5C5C;
+  }
+  [data-theme="light"]{
+    --bg:#F4F5F7; --card:#FFFFFF; --up:#ECEEF2; --line:#D9DEE5;
+    --text:#1A1F26; --dim:#68717F; --orange:#E86A00; --orange-text:#FFFFFF;
+    --green:#118A4E; --red:#C93B3B;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  body{
+    margin:0; background:var(--bg); color:var(--text);
+    font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+    padding-bottom:calc(76px + env(safe-area-inset-bottom));
+    transition:background .2s, color .2s;
+  }
+  .wrap{max-width:480px; margin:0 auto; padding:calc(16px + env(safe-area-inset-top)) 14px 0;}
+  button{font-family:inherit; cursor:pointer; border:none; color:var(--text);}
+  button:focus-visible, input:focus-visible{outline:2px solid var(--orange); outline-offset:2px;}
+  .mono{font-family:ui-monospace,Menlo,monospace;}
+
+  .weeknav{display:flex; align-items:center; justify-content:space-between; margin-bottom:14px;}
+  .navbtn{width:44px; height:44px; border-radius:10px; background:var(--up); border:1px solid var(--line); font-size:20px;}
+  .weeklabel{text-align:center; background:none; border:none; padding:0; color:inherit; font-family:inherit;}
+  .eyebrow{font-family:ui-monospace,Menlo,monospace; font-size:11px; letter-spacing:.14em; color:var(--dim); text-transform:uppercase;}
+  .weekdate{font-size:17px; font-weight:700;}
+  .thisweek{color:var(--orange); font-size:12px; font-family:ui-monospace,Menlo,monospace; margin-left:6px;}
+
+  .weeknoteinput{width:100%; background:var(--card); border:1px dashed var(--line); border-radius:11px; color:var(--text);
+    font-family:inherit; font-size:14px; padding:11px 14px; margin-bottom:14px;}
+  .weeknoteinput::placeholder{color:var(--dim); font-style:italic;}
+  .weeknoteinput:focus{border-style:solid; border-color:var(--orange);}
+  .paycard{background:var(--card); border:1px solid var(--line); border-radius:14px; padding:18px 16px; margin-bottom:12px; cursor:pointer;}
+  .bd-chevron{color:var(--dim); font-size:12px; margin-left:6px;}
+  .payrow{display:flex; justify-content:space-between; align-items:baseline;}
+  .net{font-family:ui-monospace,Menlo,monospace; font-size:40px; font-weight:700; color:var(--green); line-height:1; font-variant-numeric:tabular-nums;}
+  .hrsinfo{text-align:right; font-family:ui-monospace,Menlo,monospace; font-size:13px; color:var(--dim);}
+  .otflag{color:var(--orange);}
+  .cardactions{display:flex; gap:16px; margin-top:14px;}
+  .linkbtn{background:none; color:var(--orange); font-family:ui-monospace,Menlo,monospace; font-size:12px; padding:0;}
+  .verifybtn{background:transparent; color:var(--orange); border:1.5px solid var(--orange); border-radius:9px;
+    font-family:ui-monospace,Menlo,monospace; font-size:13px; font-weight:600; padding:9px 16px;}
+  .verifybtn.v{color:var(--green); border-color:var(--green);}
+  .breakdown{margin-top:12px; border-top:1px solid var(--line); padding-top:12px; font-family:ui-monospace,Menlo,monospace; font-size:13px;}
+  .bd-line{display:flex; justify-content:space-between; padding:4px 0; color:var(--dim);}
+  .bd-line.strong{color:var(--text); font-weight:700; border-top:1px solid var(--line); margin-top:4px; padding-top:8px;}
+  .bd-line.green{color:var(--green); font-weight:700; border-top:1px solid var(--line); margin-top:4px; padding-top:8px;}
+  .bd-line.ot{color:var(--orange);}
+  .bd-line span:last-child{font-variant-numeric:tabular-nums;}
+
+  .compare{margin-top:12px; border-top:1px solid var(--line); padding-top:12px;}
+  .compform{display:flex; flex-direction:column; gap:8px;}
+  .comprow{display:flex; align-items:center; justify-content:space-between; gap:10px;}
+  .comprow label{font-size:13px; color:var(--dim);}
+  .compinput{width:130px; font-family:ui-monospace,Menlo,monospace; font-size:15px; font-weight:700; text-align:right;
+    background:var(--up); border:1px solid var(--line); border-radius:8px; color:var(--text); padding:9px 10px;}
+  .compbtns{display:flex; gap:8px; margin-top:2px;}
+  .skiprow{display:flex; align-items:center; gap:9px; font-size:13px; color:var(--dim); padding:2px 0;}
+  .skiprow input{width:19px; height:19px; accent-color:var(--orange);}
+  .smallbtn{flex:1; font-family:ui-monospace,Menlo,monospace; font-size:13px; font-weight:600; padding:11px 0; border-radius:9px;
+    background:var(--up); border:1px solid var(--line);}
+  .smallbtn.primary{background:var(--orange); color:var(--orange-text); border-color:var(--orange);}
+  .smallbtn.danger{color:var(--red);}
+  .compresult{font-family:ui-monospace,Menlo,monospace; font-size:13px; line-height:1.6;}
+  .good{color:var(--green);} .warn{color:var(--red);} .dimtext{color:var(--dim);}
+
+  .repeatbar{width:100%; font-family:ui-monospace,Menlo,monospace; font-size:13px; font-weight:600; padding:13px 0;
+    border-radius:12px; background:var(--card); border:1px dashed var(--orange); color:var(--orange); margin-bottom:12px;}
+  .sharebar{width:100%; font-family:ui-monospace,Menlo,monospace; font-size:13px; font-weight:600; padding:13px 0;
+    border-radius:12px; background:var(--card); border:1px solid var(--line); color:var(--text); margin-top:4px;}
+
+  .day{background:var(--card); border:1px solid var(--line); border-radius:12px; margin-bottom:8px; overflow:hidden; transition:border-color .15s;}
+  .day.off{opacity:.4;}
+  .day.sunask{border-color:var(--orange); opacity:1;}
+  .day.confirm{border-color:var(--red);}
+  .confirmbody{display:flex; align-items:center; gap:10px; padding:0 12px 14px;}
+  .confirmtext{flex:1; font-size:14px; color:var(--red);}
+  .confirmbtn{font-family:ui-monospace,Menlo,monospace; font-size:14px; font-weight:700; padding:11px 18px; border-radius:9px;}
+  .confirmbtn.del{background:var(--red); color:#fff;}
+  .confirmbtn.keep{background:var(--up); border:1px solid var(--line); color:var(--text);}
+  .day.open{background:var(--up); border-color:var(--orange);}
+  .dayhead{width:100%; display:flex; align-items:center; justify-content:space-between; padding:14px 16px; background:none; font-size:15px;
+    -webkit-user-select:none; user-select:none; -webkit-touch-callout:none;}
+  .dayname{font-family:ui-monospace,Menlo,monospace; font-size:12px; color:var(--dim); width:76px; text-align:left; display:inline-block;}
+  .dayname.today{color:var(--orange);}
+  .daydate{color:var(--text); font-weight:700; font-size:13px;}
+  .dayname.today .daydate{color:var(--orange);}
+  .todaytag{font-size:10px; font-family:ui-monospace,Menlo,monospace; color:var(--orange); margin-left:8px;}
+  .dayhrs{font-family:ui-monospace,Menlo,monospace; font-size:17px; font-weight:700;}
+  .dayhrs.empty{color:var(--dim);}
+  .dayot{display:block; font-family:ui-monospace,Menlo,monospace; font-size:11px; font-weight:600; color:var(--orange); text-align:right; margin-top:2px;}
+  .daynote-preview{display:block; font-size:12px; color:var(--dim); padding:0 16px 12px; margin-top:-6px; text-align:left; font-style:italic;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .daybody{padding:0 12px 14px;}
+  .chiprow{display:flex; gap:8px; margin-bottom:8px;}
+  .chip{flex:1; font-family:ui-monospace,Menlo,monospace; font-size:16px; font-weight:700; padding:12px 0; border-radius:10px; border:1px solid var(--line); background:var(--up); color:var(--text);}
+  [data-theme="light"] .chip{background:var(--card);}
+  .chip.on{background:var(--orange); color:var(--orange-text); border-color:var(--orange);}
+  .chip.next{background:var(--orange); color:var(--orange-text); border-color:var(--orange);}
+  .chip.clear{color:var(--red);}
+  .noteinput{width:100%; background:var(--up); border:1px solid var(--line); border-radius:10px; color:var(--text);
+    font-family:inherit; font-size:14px; padding:11px 12px;}
+  [data-theme="light"] .noteinput{background:var(--card);}
+  .noteinput::placeholder{color:var(--dim);}
+
+  h2{font-size:20px; font-weight:800; margin:6px 0 14px;}
+  .panel{background:var(--card); border:1px solid var(--line); border-radius:14px; padding:16px; margin-bottom:16px;}
+  .grid2{display:grid; grid-template-columns:1fr 1fr; gap:12px; font-family:ui-monospace,Menlo,monospace; margin-top:10px;}
+  .glabel{font-size:11px; color:var(--dim);}
+  .gval{font-size:18px; font-weight:700; font-variant-numeric:tabular-nums;}
+  .projnote{font-size:12px; color:var(--dim); margin-top:10px; line-height:1.4;}
+  .histrow{width:100%; background:var(--card); border:1px solid var(--line); border-radius:12px; margin-bottom:8px; padding:14px 16px; display:flex; justify-content:space-between; align-items:center; text-align:left;}
+  .histweek{font-size:15px; font-weight:600;}
+  .histsub{font-family:ui-monospace,Menlo,monospace; font-size:12px; color:var(--dim);}
+  .histnet{font-family:ui-monospace,Menlo,monospace; font-size:17px; font-weight:700; color:var(--green); font-variant-numeric:tabular-nums;}
+  .verified{color:var(--green);}
+  .empty-msg{font-family:ui-monospace,Menlo,monospace; font-size:13px; color:var(--dim);}
+
+  .savingsline{margin-top:10px; font-family:ui-monospace,Menlo,monospace; font-size:13px; color:var(--dim);}
+  .savingsline b{color:var(--text);}
+
+  .chart{display:flex; align-items:flex-end; gap:5px; height:130px; margin-top:14px;}
+  .bar{flex:1; display:flex; flex-direction:column; align-items:center; justify-content:flex-end; height:100%; background:none; padding:0;}
+  .barfill{width:100%; border-radius:4px 4px 0 0; background:var(--dim); min-height:3px; transition:height .2s;}
+  .barfill.v{background:var(--green);}
+  .barlabel{font-family:ui-monospace,Menlo,monospace; font-size:9px; color:var(--dim); margin-top:5px; white-space:nowrap;}
+  .chartcap{display:flex; justify-content:space-between; font-family:ui-monospace,Menlo,monospace; font-size:11px; color:var(--dim); margin-top:8px;}
+  .chartval{font-family:ui-monospace,Menlo,monospace; font-size:9px; color:var(--dim); margin-bottom:3px; font-variant-numeric:tabular-nums;}
+
+  .setrow{background:var(--card); border:1px solid var(--line); border-radius:12px; padding:12px 16px; margin-bottom:8px; display:flex; justify-content:space-between; align-items:center; gap:10px;}
+  .setrow label{font-size:14px;}
+  .setrow input{width:96px; font-family:ui-monospace,Menlo,monospace; font-size:15px; font-weight:700; text-align:right; background:var(--up); border:1px solid var(--line); border-radius:8px; color:var(--text); padding:8px 10px;}
+  input[type="time"]{color-scheme:dark; width:130px;}
+  [data-theme="light"] input[type="time"]{color-scheme:light;}
+  .seg{display:flex; gap:6px;}
+  .segbtn{font-family:ui-monospace,Menlo,monospace; font-size:13px; font-weight:600; padding:9px 14px; border-radius:8px; background:var(--up); border:1px solid var(--line); color:var(--dim);}
+  .segbtn.on{background:var(--orange); color:var(--orange-text); border-color:var(--orange);}
+  .footnote{font-size:12px; color:var(--dim); margin-top:12px; line-height:1.5;}
+  .setsection{font-size:13px; color:var(--dim); margin:16px 0 10px;}
+
+  .tabbar{position:fixed; bottom:0; left:0; right:0; background:var(--bg); border-top:1px solid var(--line); padding:10px 14px calc(10px + env(safe-area-inset-bottom)); display:flex; justify-content:center; transition:background .2s;}
+  .tabs{display:flex; gap:6px; width:100%; max-width:480px;}
+  .tab{flex:1; font-family:ui-monospace,Menlo,monospace; font-size:13px; font-weight:600; padding:12px 0; border-radius:8px; background:transparent; color:var(--dim); transition:background .15s,color .15s;}
+  .tab.on{background:var(--orange); color:var(--orange-text);}
+  .hidden{display:none;}
+
+  /* ---- Bills tab ---- */
+  .b-sts{font-family:ui-monospace,Menlo,monospace; font-size:34px; font-weight:700; line-height:1; font-variant-numeric:tabular-nums; margin-top:6px;}
+  .b-sts.good{color:var(--green);} .b-sts.bad{color:var(--red);}
+  .b-stsline{font-family:ui-monospace,Menlo,monospace; font-size:12px; color:var(--dim); margin-top:8px; line-height:1.6;}
+  .b-stsline b{color:var(--text);}
+  .b-grouplabel{font-family:ui-monospace,Menlo,monospace; font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:var(--dim); margin:14px 0 8px;}
+  .b-grouplabel.over{color:var(--red);}
+  .day.b-over{border-color:var(--red);}
+  .day.b-t1{border-left:4px solid var(--orange);}
+  .day.b-t2{border-left:4px solid var(--line2, var(--dim));}
+  .b-grouplabel.hot{color:var(--orange);}
+  .b-glbtn{width:100%; background:none; padding:0; display:flex; justify-content:space-between; align-items:center; text-align:left;}
+  .b-divider{height:1px; background:var(--line); margin:10px 2px 18px;}
+  .b-qpayask{display:flex; gap:8px; align-items:center; flex:1; min-width:0;}
+  .b-qpayask input{flex:1; min-width:64px; width:auto; text-align:right;}
+  .b-qpayask .smallbtn{flex:none; padding:9px 14px; margin:0;}
+  .b-duetag.t1{color:var(--orange); font-weight:600;}
+  .day.b-paidrow{opacity:.55;}
+  .day.b-paidrow.open{opacity:1;}
+  .b-name{font-size:15px; font-weight:600; text-align:left;}
+  #screen-bills .dayhead > span:first-child{text-align:left; min-width:0;}
+  .b-sub{display:block; font-family:ui-monospace,Menlo,monospace; font-size:11px; color:var(--dim); text-align:left; margin-top:3px;}
+  .b-sub .warn{color:var(--red);} .b-sub .good{color:var(--green);}
+  .b-amt{font-family:ui-monospace,Menlo,monospace; font-size:17px; font-weight:700; font-variant-numeric:tabular-nums;}
+  .b-amt.paid{color:var(--green);}
+  .b-duetag{display:block; font-family:ui-monospace,Menlo,monospace; font-size:11px; color:var(--dim); text-align:right; margin-top:2px;}
+  .b-duetag.over{color:var(--red); font-weight:600;}
+  .b-badge{font-family:ui-monospace,Menlo,monospace; font-size:10px; border:1px solid var(--line); border-radius:5px; padding:1px 5px; color:var(--dim); margin-left:6px; vertical-align:2px;}
+  .b-prog{height:8px; background:var(--up); border:1px solid var(--line); border-radius:5px; overflow:hidden; margin:8px 0 4px;}
+  .b-progfill{height:100%; background:var(--green); border-radius:4px;}
+  .b-progfill.warn{background:var(--orange);}
+  .b-progfill.bad{background:var(--red);}
+  .b-creep{color:var(--orange); font-weight:600;}
+  .b-payform{margin-top:10px; border-top:1px solid var(--line); padding-top:10px;}
+  .b-editor{background:var(--card); border:1px solid var(--orange); border-radius:14px; padding:14px; margin-bottom:12px;}
+  .b-tmplrow{display:flex; justify-content:space-between; align-items:center; background:var(--card); border:1px solid var(--line); border-radius:12px; padding:12px 14px; margin-bottom:8px;}
+  .b-tmplinfo{font-size:14px; font-weight:600;}
+  .b-tmplsub{font-family:ui-monospace,Menlo,monospace; font-size:11px; color:var(--dim); margin-top:2px;}
+  .b-seg7{display:flex; gap:4px;}
+  .b-seg7 .segbtn{padding:9px 0; flex:1; font-size:12px;}
+  .b-swatches{display:flex; gap:10px;}
+  .b-swatch{width:36px; height:36px; border-radius:50%; border:3px solid transparent; padding:0;}
+  .b-swatch.on{border-color:var(--text);}
+  input[type="date"]{color-scheme:dark;}
+  [data-theme="light"] input[type="date"]{color-scheme:light;}
+  .b-quickrow{display:flex; flex-wrap:wrap; gap:6px; margin:10px 0;}
+  .b-quick{font-family:ui-monospace,Menlo,monospace; font-size:12px; font-weight:600; padding:9px 12px; border-radius:16px; background:var(--card); border:1px dashed var(--line); color:var(--text);}
+  .b-paidcollapse{width:100%; background:var(--card); border:1px solid var(--line); border-radius:12px; padding:13px 16px; margin-bottom:8px; font-family:ui-monospace,Menlo,monospace; font-size:13px; color:var(--dim); text-align:left; display:flex; justify-content:space-between;}
+  .b-paneltog{width:100%; display:flex; justify-content:space-between; align-items:center; background:none; padding:0;}
+  .b-togval{font-family:ui-monospace,Menlo,monospace; font-size:12px; color:var(--dim); font-variant-numeric:tabular-nums;}
+  .b-togval.warn{color:var(--red);}
+  .b-daystrip{display:flex; gap:5px;}
+  .b-daybtn{flex:1; padding:7px 0 6px; border-radius:9px; background:var(--up); border:1px solid var(--line); font-family:ui-monospace,Menlo,monospace; font-size:10.5px; color:var(--dim); line-height:1.4; text-align:center;}
+  .b-daybtn.on{border-color:var(--orange); color:var(--text);}
+  .b-dayamt{display:block; font-size:11px; font-weight:700; color:var(--text); font-variant-numeric:tabular-nums;}
+  .b-dayamt.good{color:var(--green);}
+  .b-fab{position:fixed; right:18px; bottom:calc(72px + env(safe-area-inset-bottom, 0px) + 14px); width:54px; height:54px; border-radius:50%; background:var(--orange); color:var(--orange-text); font-size:28px; font-weight:700; line-height:1; border:none; box-shadow:0 4px 16px rgba(0,0,0,.35); z-index:40; padding:0;}
+  .b-fab:active{transform:scale(.94);}
+  .b-iconrow{display:flex; flex-wrap:wrap; gap:6px; margin:2px 0 10px;}
+  .b-iconbtn{width:40px; height:40px; border-radius:9px; background:var(--up); border:1px solid var(--line); font-size:19px; padding:0;}
+  .b-iconbtn.on{border-color:var(--orange); background:var(--orange); }
+  .b-iconbtn.auto{width:auto; padding:0 10px; font-family:ui-monospace,Menlo,monospace; font-size:12px; font-weight:600; color:var(--dim);}
+  .b-iconbtn.auto.on{color:var(--orange-text);}
+
+  /* ---- Motion ---- */
+  @keyframes slideDown{ from{opacity:0; transform:translateY(-8px);} to{opacity:1; transform:translateY(0);} }
+  @keyframes fadeIn{ from{opacity:0;} to{opacity:1;} }
+  @keyframes fromRight{ from{opacity:0; transform:translateX(16px);} to{opacity:1; transform:translateX(0);} }
+  @keyframes fromLeft{ from{opacity:0; transform:translateX(-16px);} to{opacity:1; transform:translateX(0);} }
+  #screen-week.anim-next{ animation:fromRight .2s ease; }
+  #screen-week.anim-prev{ animation:fromLeft .2s ease; }
+  #screen-bills.anim-next{ animation:fromRight .2s ease; }
+  #screen-bills.anim-prev{ animation:fromLeft .2s ease; }
+  #bParkPanel.anim-next{ animation:fromRight .2s ease; }
+  #bParkPanel.anim-prev{ animation:fromLeft .2s ease; }
+  .day.b-menu{ border-color:var(--orange); }
+  .daybody{ animation:slideDown .22s ease; }
+  .breakdown:not(.hidden), .compare:not(.hidden){ animation:slideDown .22s ease; }
+  .daynote-preview{ animation:fadeIn .2s ease; }
+  #screen-week, #screen-history, #screen-settings{ animation:fadeIn .18s ease; }
+  .chip:active, .navbtn:active, .smallbtn:active, .tab:active, .repeatbar:active, .sharebar:active, .histrow:active{
+    transform:scale(.965); transition:transform .08s ease;
+  }
+  .dayhead:active{ opacity:.7; transition:opacity .08s ease; }
+  @media (prefers-reduced-motion: reduce){ *{transition:none !important; animation:none !important;} }
+
+  /* ============ HER SKIN: calm, roomy, soft ============ */
+  :root{
+    --bg:#F7F5F2; --card:#FFFFFF; --line:#E7E2DB; --line2:#D8D2C8;
+    --text:#2A2724; --dim:#8A8378; --up:#F1EDE7;
+    --green:#2E7D5B; --red:#C0442E; --orange:#8A63D2; --orange-text:#fff;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{ --bg:#191714; --card:#211E1A; --line:#332F29; --line2:#453F37;
+      --text:#EDE8E1; --dim:#948C7F; --up:#2A2621;
+      --green:#5BBF93; --red:#E07B66; --orange:#A78BE8; --orange-text:#1B1626; }
+  }
+  body{ font-family:-apple-system, "SF Pro Text", Segoe UI, Roboto, sans-serif; letter-spacing:.005em; }
+  .panel{ border-radius:18px; box-shadow:0 1px 2px rgba(40,30,10,.04); }
+  .day{ border-radius:16px; margin-bottom:10px; box-shadow:0 1px 2px rgba(40,30,10,.04); }
+  .dayhead{ padding:16px 18px; }
+  .b-name{ font-size:16px; letter-spacing:0; }
+  .b-sub, .b-tmplsub, .b-duetag, .b-togval, .eyebrow, .b-stsline, .compresult, .b-grouplabel, .footnote, .b-paidcollapse, .glabel, .histsub{ font-family:inherit; }
+  .eyebrow{ letter-spacing:.09em; font-size:11.5px; }
+  .b-sts{ font-family:inherit; font-weight:800; font-size:38px; letter-spacing:-.02em; }
+  .b-amt{ font-size:16.5px; }
+  .b-grouplabel{ font-size:12px; letter-spacing:.08em; margin:18px 2px 10px; }
+  .b-grouplabel.hot{ color:var(--orange); }
+  .day.b-t1{ border-left:4px solid var(--orange); }
+  .chip, .smallbtn, .confirmbtn, .segbtn{ border-radius:12px; }
+  .b-fab{ background:var(--orange); box-shadow:0 6px 18px rgba(90,60,180,.28); }
+  .b-prog{ height:8px; border-radius:99px; background:var(--up); overflow:hidden; }
+  .b-progfill{ background:var(--green); border-radius:99px; height:100%; }
+  .weeklabel .weekdate{ font-size:24px; font-weight:800; letter-spacing:-.01em; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <section id="screen-bills">
+
+    <div class="weeknav">
+      <button class="navbtn" id="bPrevMonth" aria-label="Previous month">&#8249;</button>
+      <button class="weeklabel" id="bMonthHome" aria-label="Jump to current month">
+        <div class="eyebrow">Bills for</div>
+        <div class="weekdate"><span id="bMonthLabel"></span><span id="bThisMonthTag" class="thisweek hidden">&#9679; this month</span></div>
+      </button>
+      <button class="navbtn" id="bNextMonth" aria-label="Next month">&#8250;</button>
+    </div>
+
+    <div id="bSnapBanner"></div>
+    <div class="panel" id="bStsPanel"></div>
+    <div id="bList"></div>
+    <div id="bEditorBox"></div>
+    <button id="bAddBill" class="b-fab" aria-label="Add a bill">+</button>
+    <div class="b-divider"></div>
+    <div class="panel hidden" id="bCardsPanel"></div>
+    <div class="panel hidden" id="bLoansPanel"></div>
+    <div class="panel hidden" id="bParkPanel"></div>
+    <div class="panel hidden" id="bSummary"></div>
+    <button class="sharebar" id="bManageBtn">&#9881; Manage bills &amp; settings</button>
+    <div id="bManage" class="hidden"></div>
+    <button class="sharebar" id="bHistoryBtn" style="margin-top:12px">📊 Bills history</button>
+    <div class="panel hidden" id="bYearPanel" style="margin-top:12px"></div>
+    <div class="compbtns" style="margin:16px 0 4px">
+      <button class="smallbtn" id="bExportBtn" style="flex:1; padding:13px">&#8681; Export backup</button>
+      <button class="smallbtn" id="bImportBtn" style="flex:1; padding:13px">&#8683; Restore backup</button>
+      <input type="file" id="bImportFile" accept="application/json" class="hidden">
+    </div>
+    <p class="footnote">Your bills live on this phone only &mdash; no account, no server. Keep a backup now and then. <span class="dimtext">Bills v1.0</span></p>
+  
+  </section>
+</div>
+<script>
+// ==================================================================
+// ============ BILLS TAB (v2) ======================================
+// All bills data lives under its own storage key. It NEVER writes to
+// the pay data ('paytracker:v1') — it only reads it for cash flow.
+// ==================================================================
+const BKEY = 'billsonly:v1';
+const BDEF = { templates:{}, payments:{}, overrides:{}, settings:{ palette:'ocean' }, ui:{ lastTab:'bills', sumOpen:false, yearOpen:false, stsOpen:false, cardsOpen:false, loansOpen:false, backupSnooze:null, lastExport:null, snapDismissed:true } };
+let bstate = JSON.parse(JSON.stringify(BDEF));
+try {
+  const bsaved = JSON.parse(localStorage.getItem(BKEY));
+  if (bsaved && typeof bsaved==='object'){
+    bstate.templates = bsaved.templates||{};
+    bstate.payments = bsaved.payments||{};
+    bstate.overrides = bsaved.overrides||{};
+    bstate.settings = { ...BDEF.settings, ...(bsaved.settings||{}) };
+    bstate.ui = { ...BDEF.ui, ...(bsaved.ui||{}) };
+  }
+} catch(e){}
+function bsave(){ try{ localStorage.setItem(BKEY, JSON.stringify(bstate)); }catch(e){} }
+
+// ---- Bills color palette: recolors ONLY the Bills tab (Pay keeps orange/green).
+// Each palette has dark + light variants so it stays readable in both themes.
+const BPALS = {
+  ocean:  { label:'Ocean',  dark:{acc:'#4EA1FF', good:'#2DD4BF', accText:'#14181D'}, light:{acc:'#1667D9', good:'#0F766E', accText:'#FFFFFF'} },
+  violet: { label:'Violet', dark:{acc:'#A78BFA', good:'#6EE7B7', accText:'#14181D'}, light:{acc:'#6D28D9', good:'#059669', accText:'#FFFFFF'} },
+  teal:   { label:'Teal',   dark:{acc:'#2DD4BF', good:'#A3E635', accText:'#14181D'}, light:{acc:'#0F766E', good:'#4D7C0F', accText:'#FFFFFF'} },
+  rose:   { label:'Rose',   dark:{acc:'#FB7185', good:'#FBBF24', accText:'#14181D'}, light:{acc:'#BE123C', good:'#B45309', accText:'#FFFFFF'} },
+  match:  { label:'Same as Pay', dark:null, light:null },
+};
+function bApplyPalette(){
+  let styleEl = document.getElementById('bPalStyle');
+  if (!styleEl){
+    styleEl = document.createElement('style');
+    styleEl.id = 'bPalStyle';
+    document.head.appendChild(styleEl);
+  }
+  const p = BPALS[bstate.settings.palette] || BPALS.ocean;
+  if (!p.dark){ styleEl.textContent = ''; return; } // "Same as Pay": no overrides
+  styleEl.textContent =
+    '#screen-bills{ --orange:'+p.dark.acc+'; --green:'+p.dark.good+'; --orange-text:'+p.dark.accText+'; }'
+    + '[data-theme="light"] #screen-bills{ --orange:'+p.light.acc+'; --green:'+p.light.good+'; --orange-text:'+p.light.accText+'; }'
+    + '.tab[data-screen="bills"].on{ background:'+p.dark.acc+'; color:'+p.dark.accText+'; }'
+    + '[data-theme="light"] .tab[data-screen="bills"].on{ background:'+p.light.acc+'; color:'+p.light.accText+'; }';
+}
+
+// One-time safety snapshot of the pay data, taken before Bills ever runs.
+try {
+  if (!localStorage.getItem('paytracker:snapshot-v1')){
+    const paydata = localStorage.getItem(KEY);
+    if (paydata) localStorage.setItem('paytracker:snapshot-v1', paydata);
+  }
+} catch(e){}
+
+const BCATS = {
+  housing:{ic:'\uD83C\uDFE0', label:'Housing'},
+  utility:{ic:'\uD83D\uDCA1', label:'Utility'},
+  card:{ic:'\uD83D\uDCB3', label:'Credit card'},
+  loan:{ic:'\uD83C\uDFE6', label:'Loan'},
+  sub:{ic:'\uD83D\uDCFA', label:'Subscription'},
+  other:{ic:'\uD83D\uDCC4', label:'Other'},
+};
+const BFREQS = { monthly:'Monthly', weekly:'Weekly', biweekly:'Every 2 wks', quarterly:'Quarterly', yearly:'Yearly', once:'One-time' };
+
+// ---- Per-bill icons: auto-picked from the name, manual override in the editor
+const BICONS = ['\uD83C\uDFE0','\u26A1','\uD83D\uDD25','\uD83D\uDCA7','\uD83C\uDF10','\uD83D\uDCF1','\uD83D\uDCB3','\uD83C\uDFE6','\uD83D\uDCB8','\uD83D\uDCFA','\uD83C\uDFB5','\uD83D\uDE97','\uD83C\uDFE5','\uD83D\uDCAA','\uD83D\uDC3E','\uD83C\uDF93','\uD83D\uDCE6','\uD83E\uDDFE','\uD83D\uDCA1','\uD83D\uDCC4'];
+const BICON_KEYS = [
+  [/rent|mortgage|apart|lease|hoa/, '\uD83C\uDFE0'],
+  [/gas|propane|oil|heat/, '\uD83D\uDD25'],
+  [/water|sewer/, '\uD83D\uDCA7'],
+  [/electric|power|eversource|national grid/, '\u26A1'],
+  [/internet|wifi|comcast|xfinity|fios|broadband/, '\uD83C\uDF10'],
+  [/phone|mobile|verizon|t-?mobile|at&t|att|cricket|metro/, '\uD83D\uDCF1'],
+  [/visa|master|amex|discover|credit|card|capital ?one|chase|citi/, '\uD83D\uDCB3'],
+  [/car|auto|toyota|honda|ford|vehicle/, '\uD83D\uDE97'],
+  [/insurance|geico|progressive|allstate|liberty/, '\uD83D\uDE97'],
+  [/klarna|afterpay|affirm|sezzle|paypal|zip/, '\uD83D\uDCB8'],
+  [/loan|lending|sofi|upstart|onemain/, '\uD83C\uDFE6'],
+  [/netflix|hulu|disney|youtube|hbo|max|peacock|paramount|stream|tv|prime/, '\uD83D\uDCFA'],
+  [/spotify|music|pandora|tidal/, '\uD83C\uDFB5'],
+  [/apple|icloud/, '\uD83D\uDCF1'],
+  [/gym|fitness|planet|crunch/, '\uD83D\uDCAA'],
+  [/doctor|dental|medical|health|hospital|pharm/, '\uD83C\uDFE5'],
+  [/pet|vet|dog|cat/, '\uD83D\uDC3E'],
+  [/school|tuition|daycare|child/, '\uD83C\uDF93'],
+  [/storage|unit/, '\uD83D\uDCE6'],
+];
+function bIconFor(t){
+  if (t.icon) return t.icon; // manual pick wins
+  const n = (t.name||'').toLowerCase();
+  for (const [re, ic] of BICON_KEYS){ if (re.test(n)) return ic; }
+  return (BCATS[t.cat]||BCATS.other).ic; // fall back to the category icon
+}
+// Same idea for the category itself — the name suggests, your tap decides
+const BCAT_KEYS = [
+  [/klarna|afterpay|affirm|sezzle|\bzip\b|loan|lending|sofi|upstart|onemain|dcu/, 'loan'],
+  [/visa|master\s?card|amex|discover|credit|\bcard\b|capital\s?one|chase|citi/, 'card'],
+  [/rent|mortgage|lease|hoa|apart/, 'housing'],
+  [/electric|power|\bgas\b|water|sewer|internet|wifi|phone|mobile|utility|comcast|xfinity|fios|verizon|t-?mobile|at&t|\batt\b|national grid|eversource/, 'utility'],
+  [/netflix|hulu|disney|youtube|hbo|\bmax\b|peacock|paramount|spotify|pandora|subscription|prime|apple one|icloud|gym|planet fitness|crunch/, 'sub'],
+];
+const BNPL_RE = /klarna|afterpay|affirm|sezzle|\bzip\b|paypal pay|pay in 4/i;
+function bCatLabel(t){
+  if (t.cat==='loan' && BNPL_RE.test(t.name||'')) return 'Pay plan';
+  return (BCATS[t.cat]||BCATS.other).label;
+}
+function bCatFor(name){
+  const n = (name||'').toLowerCase();
+  for (const [re, cat] of BCAT_KEYS){ if (re.test(n)) return cat; }
+  return 'other';
+}
+const BMONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const BDOW = ['Su','Mo','Tu','We','Th','Fr','Sa'];
+// Quick-add presets: [name, category, frequency]
+const BQUICK = [
+  ['Rent','housing','monthly'], ['Electric','utility','monthly'], ['Gas','utility','monthly'],
+  ['Water','utility','monthly'], ['Phone','utility','monthly'], ['Internet','utility','monthly'],
+  ['Car insurance','other','monthly'], ['Credit card','card','monthly'], ['Loan','loan','monthly'],
+  ['Klarna','loan','biweekly'], ['YouTube','sub','monthly'], ['Apple One','sub','monthly'],
+];
+
+let bMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+let bOpen = null;          // expanded bill instance id
+let bManageOpen = false;
+let bEdit = null;          // template id being edited, or 'new'
+let bDraft = null;         // editor working values
+let bConfirmDel = false;   // delete confirmation inside editor
+let bShowPaid = true; // paid bills visible by default — fold via the group header     // paid group starts collapsed to keep the view focused
+let bShowSubs = false;     // subscriptions group starts collapsed too
+let bConfirm = null;       // long-press menu: {iid, mode:'menu'|'del'}
+let bLpFired = false;      // suppresses the tap that trails a long-press
+
+// Rebuild an instance from its id (template id + due date)
+function bFindInst(iid){
+  const at = iid.indexOf('@');
+  if (at<0) return null;
+  const tid = iid.slice(0,at), dueKey = iid.slice(at+1);
+  const t = bstate.templates[tid];
+  if (!t) return null;
+  return { iid, tid, t, due: fromKey(dueKey), pay: bstate.payments[iid]||null };
+}
+
+function bDaysIn(y,m){ return new Date(y, m+1, 0).getDate(); }
+function bClamp(y,m,day){ return Math.min(Math.max(1, day||1), bDaysIn(y,m)); }
+function bMonthKey(y,m){ return y+'-'+String(m+1).padStart(2,'0'); }
+function bFmtDue(d){ return BMONTHS[d.getMonth()]+' '+d.getDate(); }
+function bTodayKey(){ return toKey(new Date()); }
+function bNewId(){ return 'b'+Date.now().toString(36)+Math.random().toString(36).slice(2,6); }
+
+// ---- Instances: generated fresh from templates for any month. Nothing
+// is "rolled over" or stored, so auto-roll can never break or duplicate.
+function bInstancesFor(y, m){
+  const out = [];
+  const mk = bMonthKey(y,m);
+  const mStart = new Date(y,m,1), mEnd = new Date(y,m,bDaysIn(y,m));
+  for (const [id,t] of Object.entries(bstate.templates)){
+    if (t.archived) continue;
+    if (t.startKey && mk < t.startKey) continue; // don't invent bills before they existed
+    if (t.freq==='monthly'){
+      out.push(bMkInst(id, t, new Date(y, m, bClamp(y,m,t.dueDay))));
+    } else if (t.freq==='quarterly'){
+      if ((((m - (t.dueMonth||0)) % 3) + 3) % 3 === 0)
+        out.push(bMkInst(id, t, new Date(y, m, bClamp(y,m,t.dueDay))));
+    } else if (t.freq==='yearly'){
+      if ((t.dueMonth||0) === m)
+        out.push(bMkInst(id, t, new Date(y, m, bClamp(y,m,t.dueDay))));
+    } else if (t.freq==='once'){
+      const d = fromKey(t.anchor||bTodayKey());
+      if (d.getFullYear()===y && d.getMonth()===m) out.push(bMkInst(id, t, d));
+    } else if (t.freq==='weekly' || t.freq==='biweekly'){
+      const step = t.freq==='weekly' ? 7 : 14;
+      const a = fromKey(t.anchor||bTodayKey());
+      if (a <= mEnd){
+        let d = new Date(a);
+        if (d < mStart){
+          const gap = Math.ceil((mStart - d)/(864e5*step))*step;
+          d.setDate(d.getDate()+gap);
+          while (d < mStart) d.setDate(d.getDate()+step); // guard tz edges
+        }
+        for (; d <= mEnd; d = new Date(d.getFullYear(), d.getMonth(), d.getDate()+step))
+          out.push(bMkInst(id, t, new Date(d)));
+      }
+    }
+  }
+  out.sort((a,b)=>a.due-b.due);
+  return out;
+}
+function bMkInst(id, t, due){
+  const iid = id+'@'+toKey(due);
+  const pay = bstate.payments[iid] || null;
+  return { iid, tid:id, t, due, pay };
+}
+
+// ---- Payment history per template (sorted oldest -> newest) ----
+function bPayHist(tid){
+  const rows = [];
+  for (const [iid,p] of Object.entries(bstate.payments)){
+    if (iid.startsWith(tid+'@')) rows.push({ dueKey: iid.slice(tid.length+1), ...p });
+  }
+  rows.sort((a,b)=> (a.date||a.dueKey) < (b.date||b.dueKey) ? -1 : 1);
+  return rows;
+}
+function bAvgPaid(tid){
+  const h = bPayHist(tid).filter(r=>!r.skip && !r.partial && (r.amt||0)>0).slice(-6);
+  if (!h.length) return 0;
+  return h.reduce((s,r)=>s+(r.amt||0),0)/h.length;
+}
+// Base amount before any payment: billed override > history average (if varies) > template amount
+function bBaseAmt(inst){
+  if (bstate.overrides[inst.iid] > 0) return bstate.overrides[inst.iid];
+  if (inst.t.varies){ const a = bAvgPaid(inst.tid); if (a>0) return a; }
+  return inst.t.amt||0;
+}
+// Expected total for the month: skipped = $0; fully paid = what was paid;
+// partial = at least the base (you can't owe less than you've paid); unpaid = base
+function bExpAmt(inst){
+  if (inst.pay){
+    if (inst.pay.skip) return 0;
+    if (inst.pay.partial) return Math.max(inst.pay.amt||0, bBaseAmt(inst));
+    return inst.pay.amt||0;
+  }
+  return bBaseAmt(inst);
+}
+// What's still owed on this instance
+function bRemaining(inst){
+  if (!inst.pay) return bExpAmt(inst);
+  if (inst.pay.skip) return 0;
+  if (inst.pay.partial) return Math.max(0, bExpAmt(inst) - (inst.pay.amt||0));
+  return 0;
+}
+// Bill creep: latest payment vs average of the ones before it
+function bCreep(tid){
+  const h = bPayHist(tid);
+  if (h.length < 3) return 0;
+  const last = h[h.length-1].amt||0;
+  const prev = h.slice(0,-1);
+  const avg = prev.reduce((s,r)=>s+(r.amt||0),0)/prev.length;
+  if (avg<=0) return 0;
+  const pct = (last-avg)/avg*100;
+  return pct >= 10 ? Math.round(pct) : 0;
+}
+// Monthly-equivalent cost of a template (for subscription rollups)
+function bMonthlyEq(t){
+  const amt = t.amt||0;
+  switch(t.freq){
+    case 'weekly': return amt*52/12;
+    case 'biweekly': return amt*26/12;
+    case 'monthly': return amt;
+    case 'quarterly': return amt/3;
+    case 'yearly': return amt/12;
+    default: return 0;
+  }
+}
+// Loan progress: payments made before the app + payments recorded in it
+function bLoanProg(tid, t){
+  const made = (t.loanPaid||0) + bPayHist(tid).filter(r=>!r.skip && !r.partial && (r.amt||0)>0).length;
+  const total = t.loanTotal||0;
+  return { made: Math.min(made,total), total, left: Math.max(0, total-made) };
+}
+// Payoff picture from whatever the user gave us. Priority: the BALANCE is the
+// ground truth (it can't drift); payment counts fill in when there's no balance.
+function bLoanPayoff(tid, t){
+  const amt = t.amt||0;
+  let total = t.loanTotal||0;
+  let left = null, made = 0;
+  if (t.balance > 0 && amt > 0){
+    left = Math.ceil(t.balance / amt);
+    if (total > 0){ left = Math.min(left, total); made = Math.max(0, total - left); }
+  } else if (total > 0){
+    const pr = bLoanProg(tid, t);
+    left = pr.left; made = pr.made;
+  }
+  if (left === null) return null;
+  const d = new Date();
+  if (t.freq==='weekly') d.setDate(d.getDate() + left*7);
+  else if (t.freq==='biweekly') d.setDate(d.getDate() + left*14);
+  else if (t.freq==='quarterly') d.setMonth(d.getMonth() + left*3);
+  else if (t.freq==='yearly') d.setMonth(d.getMonth() + left*12);
+  else { d.setDate(1); d.setMonth(d.getMonth() + left); }
+  return { made, total, left, date: d, counted: total>0 };
+}
+
+// ---- Cash flow: read-only peek at the pay data ----
+// hours when we have them, so this week's OT shows up in Safe to Spend today.
+// Unpaid instances from the last 2 months (carryover) — the bills that
+// disappear from a naive month view but very much still need paying.
+function bCarryover(){
+  const today = new Date(); today.setHours(0,0,0,0);
+  const out = []; const seen = new Set();
+  for (let i=2; i>=0; i--){
+    const d = new Date(today.getFullYear(), today.getMonth()-i, 1);
+    for (const inst of bInstancesFor(d.getFullYear(), d.getMonth())){
+      if (seen.has(inst.iid)) continue; seen.add(inst.iid);
+      if (bRemaining(inst) > 0 && inst.due < today) out.push(inst);
+    }
+  }
+  out.sort((a,b)=>a.due-b.due);
+  return out;
+}
+// The rolling-check window: the incoming check must last until the NEXT one.
+// Everything due from today through the day before that next-next check is ITS job.
+// On-time streak: consecutive fully on-time months, counting back from last month
+function bStreak(){
+  let earliest = null;
+  for (const iid of Object.keys(bstate.payments)){
+    const k = iid.split('@')[1]; if (!k) continue;
+    const mk = k.slice(0,7);
+    if (!earliest || mk < earliest) earliest = mk;
+  }
+  if (!earliest) return 0;
+  let streak = 0;
+  const d = new Date(); d.setDate(1); d.setMonth(d.getMonth()-1); // last month
+  for (let i=0; i<24; i++){
+    const mk = bMonthKey(d.getFullYear(), d.getMonth());
+    if (mk < earliest) break;
+    const insts = bInstancesFor(d.getFullYear(), d.getMonth());
+    if (insts.length){
+      const allOnTime = insts.every(x => bRemaining(x)<=0 && x.pay && (x.pay.skip || (x.pay.date||'') <= toKey(x.due)));
+      if (!allOnTime) break;
+      streak++;
+    }
+    d.setMonth(d.getMonth()-1);
+  }
+  return streak;
+}
+
+// ============ RENDER: BILLS ============
+function renderBills(){
+  const y = bMonth.getFullYear(), m = bMonth.getMonth();
+  const now = new Date();
+  const isThisMonth = (y===now.getFullYear() && m===now.getMonth());
+  document.getElementById('bMonthLabel').textContent = BMONTHS[m]+' '+y;
+  document.getElementById('bThisMonthTag').classList.toggle('hidden', !isThisMonth);
+
+  bRenderSnapBanner();
+  bRenderSts();
+
+  const insts = bInstancesFor(y,m);
+  const todayK = bTodayKey();
+  const owed = i => bRemaining(i) > 0;
+  let over = insts.filter(i=>owed(i) && toKey(i.due) < todayK && isThisMonthOrPast(y,m));
+  if (isThisMonth){
+    // Unpaid bills from earlier months don't vanish at month rollover — they follow you here
+    const ids = new Set(over.map(i=>i.iid));
+    const carry = bCarryover().filter(i=>!ids.has(i.iid) && !insts.some(x=>x.iid===i.iid));
+    over = [...carry, ...over].sort((a,b)=>a.due-b.due);
+  }
+  const due  = insts.filter(i=>owed(i) && !over.includes(i));
+  const paid = insts.filter(i=>!owed(i) && i.pay);
+
+  const list = document.getElementById('bList');
+  list.innerHTML = '';
+  if (!insts.length){
+    list.innerHTML = '<p class="empty-msg" style="margin:14px 4px">'+(Object.keys(bstate.templates).length
+      ? 'Nothing due in '+BMONTHS[m]+'.'
+      : 'No bills yet. Tap <b>+ Add a bill</b> and set up rent, cards, loans, subscriptions\u2026 each one only takes a few seconds.')+'</p>';
+  }
+  const addGroup = (label, arr, cls)=>{
+    if (!arr.length) return;
+    const gl = document.createElement('div');
+    gl.className = 'b-grouplabel'+(cls?' '+cls:'');
+    gl.textContent = label;
+    list.appendChild(gl);
+    for (const i of arr) list.appendChild(bRow(i, todayK));
+  };
+  addGroup('\u26A0 Overdue', over, 'over');
+  let subs = due.filter(i=>i.t.cat==='sub');
+  let main = due.filter(i=>i.t.cat!=='sub');
+  const todayD = fromKey(todayK);
+  if (isThisMonth && subs.length){
+    // urgency beats grouping: a sub due within a week escapes the fold
+    const soon = new Date(todayD); soon.setDate(soon.getDate()+7);
+    const urgent = subs.filter(i=>i.due <= soon);
+    if (urgent.length){
+      main = [...main, ...urgent].sort((a,b)=>a.due-b.due);
+      subs = subs.filter(i=>i.due > soon);
+    }
+  }
+  if (isThisMonth && main.length){
+    const wk1 = new Date(todayD); wk1.setDate(wk1.getDate()+7);
+    const wk2 = new Date(todayD); wk2.setDate(wk2.getDate()+14);
+    const t1 = [], t2 = [], later = [];
+    for (const i of main){
+      if (i.due <= wk1){ i._tier = 1; t1.push(i); }
+      else if (i.due <= wk2){ i._tier = 2; t2.push(i); }
+      else later.push(i);
+    }
+    addGroup('This week', t1, 'hot');
+    addGroup('Coming up \u00B7 by '+bFmtDue(wk2), t2, '');
+    addGroup('Later in '+BMONTHS[m], later, '');
+  } else {
+    addGroup('Coming up', main, '');
+  }
+  if (subs.length){
+    if (bShowSubs){
+      const gl = document.createElement('button');
+      gl.className='b-grouplabel b-glbtn'; gl.dataset.bhidesubs='1';
+      gl.innerHTML = '<span>Subscriptions</span><span>\u25BE</span>';
+      list.appendChild(gl);
+      for (const i of subs) list.appendChild(bRow(i, todayK));
+    } else {
+      const tot = subs.reduce((s,i)=>s+bExpAmt(i),0);
+      const row = document.createElement('button');
+      row.className = 'b-paidcollapse';
+      row.dataset.bshowsubs = '1';
+      row.innerHTML = '<span>\uD83D\uDCFA Subscriptions ('+subs.length+') \u00B7 next '+bFmtDue(subs[0].due)+'</span><span>$'+money(tot)+'</span>';
+      list.appendChild(row);
+    }
+  }
+  if (paid.length){
+    if (bShowPaid){
+      const gl = document.createElement('button');
+      gl.className='b-grouplabel b-glbtn'; gl.dataset.bhidepaid='1';
+      gl.innerHTML = '<span>Paid \u2713</span><span>\u25BE</span>';
+      list.appendChild(gl);
+      for (const i of paid) list.appendChild(bRow(i, todayK));
+    } else {
+      const tot = paid.reduce((s,i)=>s+bExpAmt(i),0);
+      const row = document.createElement('button');
+      row.className = 'b-paidcollapse';
+      row.dataset.bshowpaid = '1';
+      row.innerHTML = '<span>\u2713 Paid ('+paid.length+') \u00B7 tap to show</span><span class="good">$'+money(tot)+'</span>';
+      list.appendChild(row);
+    }
+  }
+
+  bRenderSummary(insts, y, m);
+  bRenderCards();
+  bRenderLoans();
+  bRenderYear();
+  document.getElementById('bEditorBox').innerHTML = (bEdit!==null && bDraft) ? bEditorHtml() : '';
+  const fab = document.getElementById('bAddBill');
+  if (fab) fab.classList.toggle('hidden', bEdit!==null); // FAB steps aside while the editor is open
+  bRenderManage();
+}
+function isThisMonthOrPast(y,m){
+  const n = new Date();
+  return y < n.getFullYear() || (y===n.getFullYear() && m <= n.getMonth());
+}
+
+function bRenderSnapBanner(){
+  const el = document.getElementById('bSnapBanner');
+  let html = '';
+  // Backup nudge: your whole financial life lives on this phone — keep a fresh copy elsewhere
+  const hasData = Object.keys(bstate.payments).length || Object.keys(bstate.templates).length;
+  if (hasData){
+    const last = bstate.ui.lastExport;
+    const days = last ? Math.floor((new Date() - fromKey(last)) / 864e5) : null;
+    const snooze = bstate.ui.backupSnooze;
+    const snoozed = snooze && Math.floor((new Date() - fromKey(snooze)) / 864e5) < 7; // quiet for a week per dismissal
+    if ((days === null || days > 30) && !snoozed){
+      html += '<div class="panel" style="border-color:var(--orange); padding:12px 16px">'
+        + '<div class="compresult"><span class="b-creep">\u26A0 '+(days===null ? 'No backup yet' : 'Last backup '+days+' days ago')
+        + '</span> \u2014 everything lives on this phone only. Manage \u2192 Export backup takes ten seconds.</div>'
+        + '<div class="compbtns" style="margin-top:8px"><button class="smallbtn" data-bbaksnooze="1">Remind me in a week</button></div></div>';
+    }
+  }
+  el.innerHTML = html;
+}
+
+function bRenderSts(){
+  const el = document.getElementById('bStsPanel');
+  const y = bMonth.getFullYear(), m = bMonth.getMonth();
+  const insts = bInstancesFor(y, m);
+  if (!Object.keys(bstate.templates).length){
+    el.innerHTML = '<div class="eyebrow">This month</div>'
+      + '<div class="b-stsline">Add your bills with the + button \u2014 rent, cards, subscriptions, anything with a due date. Each takes a few seconds.</div>';
+    return;
+  }
+  let due = 0, paid = 0, total = 0, overdueSum = 0;
+  const today = new Date(); today.setHours(0,0,0,0);
+  for (const i2 of insts){
+    if (i2.pay && i2.pay.skip) continue;
+    const amt = bExpAmt(i2), rem = bRemaining(i2);
+    total += amt; due += Math.max(0, rem); paid += Math.min(amt, amt - rem);
+  }
+  for (const c of bCarryover()) overdueSum += bRemaining(c);
+  const pct = total>0 ? Math.min(100, Math.round(paid/total*100)) : 0;
+  const nowD = new Date();
+  const isThis = y===nowD.getFullYear() && m===nowD.getMonth();
+  const isPast = y<nowD.getFullYear() || (y===nowD.getFullYear() && m<nowD.getMonth());
+  const label = isPast ? BMONTHS[m]+(y!==nowD.getFullYear()?' '+y:'')+' \u00B7 paid'
+              : (isThis ? 'Left to pay this month' : BMONTHS[m]+(y!==nowD.getFullYear()?' '+y:'')+' \u00B7 coming');
+  const big = isPast ? paid : due + (isThis ? overdueSum : 0);
+  el.innerHTML = '<div class="eyebrow">'+label+'</div>'
+    + '<div class="b-sts '+(isPast||big===0?'good':'')+'">$'+money(big)+'</div>'
+    + '<div class="b-prog" style="margin-top:12px"><div class="b-progfill" style="width:'+pct+'%"></div></div>'
+    + '<div class="b-stsline" style="margin-top:8px">$'+money(paid)+' of $'+money(total)+' paid \u00B7 '+pct+'%'
+    + (isThis && overdueSum>0 ? ' \u00B7 <span class="warn">$'+money(overdueSum)+' overdue included</span>' : '')
+    + '</div>';
+}
+
+// falls back to the flat rate in Manage until there's history
+// Days actually worked in a month — read straight from the logged hours on the Pay tab
+// One calculation, used by both the Bills panel and the Pay-screen strip
+// Scrolled to another month? The headline changes tense with you.
+
+// The same headline, mirrored onto the Pay screen where hours get logged daily.
+// Updates live as hours change; tapping it jumps to the Bills tab.
+function bUpdateStrip(){ /* Pay-tab strip retired — Remaining lives on the Bills tab */ }
+
+// ---- Year rollup: cash out by the month you actually paid it ----
+function bMonthPaid(mk){ // total paid (bills, non-skip) in a given 'YYYY-MM'
+  let bills=0, debt=0;
+  for (const [iid,p] of Object.entries(bstate.payments)){
+    if (p.skip || !(p.amt>0)) continue;
+    const pm = (p.date || iid.split('@')[1] || '').slice(0,7);
+    if (pm !== mk) continue;
+    bills += p.amt;
+    const t = bstate.templates[iid.split('@')[0]];
+    if (t && (t.cat==='card' || t.cat==='loan')) debt += p.amt;
+  }
+  let park=0;
+  return { bills, debt, park, total: bills+park };
+}
+function bYearStats(year){
+  let bills=0, debt=0, park=0; const months=new Set();
+  for (let m=0;m<12;m++){
+    const mk = bMonthKey(year,m);
+    const s = bMonthPaid(mk);
+    bills+=s.bills; debt+=s.debt; park+=s.park;
+    if (s.total>0) months.add(mk);
+  }
+  return { bills, debt, park, total:bills+park, monthCount: months.size };
+}
+function bRenderYear(){
+  const el = document.getElementById('bYearPanel');
+  const btn = document.getElementById('bHistoryBtn');
+  const year = new Date().getFullYear();
+  const ys = bYearStats(year);
+  const open = !!bstate.ui.yearOpen;
+  const hasData = Object.keys(bstate.payments).length > 0;
+  if (btn) btn.innerHTML = '\uD83D\uDCCA Bills history'
+    + (hasData ? ' \u00B7 $'+money(ys.total)+' paid in '+year : '')
+    + ' '+(open?'\u25BE':'\u25B8');
+  if (!open){ el.classList.add('hidden'); return; }
+  el.classList.remove('hidden');
+  if (!hasData){
+    el.innerHTML = '<div class="eyebrow">'+year+' totals</div>'
+      + '<p class="empty-msg" style="margin:10px 0 0">Nothing here yet \u2014 mark a bill paid and your history starts building.</p>';
+    return;
+  }
+  const cells = [
+    ['Bills paid','$'+money(ys.bills),'var(--text)'],
+    ['Toward debt (cards + loans)','$'+money(ys.debt),'var(--green)'],
+    ['Avg / month', ys.monthCount>0 ? '$'+money(ys.total/ys.monthCount) : '\u2014','var(--dim)'],
+  ];
+  // last 12 months, oldest -> newest, tap a bar to jump to that month
+  const now = new Date();
+  const series = [];
+  for (let i=11;i>=0;i--){
+    const d = new Date(now.getFullYear(), now.getMonth()-i, 1);
+    const mk = bMonthKey(d.getFullYear(), d.getMonth());
+    series.push({ mk, d, v: bMonthPaid(mk).total });
+  }
+  let chartHtml = '';
+  if (series.some(s=>s.v>0)){
+    const maxV = Math.max(...series.map(s=>s.v));
+    chartHtml = '<div class="chart" style="height:100px">'
+      + series.map(s=>{
+          const hpct = Math.max(3, Math.round(s.v/maxV*100));
+          return '<button class="bar" data-bgotm="'+s.mk+'" aria-label="'+BMONTHS[s.d.getMonth()]+', $'+money(s.v)+'">'
+            + '<span class="chartval">'+(s.v>=1000 ? (s.v/1000).toFixed(1)+'k' : Math.round(s.v))+'</span>'
+            + '<span class="barfill'+(s.v>0?' v':'')+'" style="height:'+hpct+'%"></span>'
+            + '<span class="barlabel">'+BMONTHS[s.d.getMonth()]+'</span></button>';
+        }).join('')
+      + '</div>';
+  }
+  el.innerHTML = '<div class="eyebrow">'+year+' totals</div>'
+    + '<div class="grid2">'+cells.map(([l,v,c])=>'<div><div class="glabel">'+l+'</div><div class="gval" style="color:'+c+'">'+v+'</div></div>').join('')+'</div>'
+    + chartHtml
+    + '<div class="projnote">Counted by the month you paid, not the month it was due \u2014 same way your pay history counts money in. Tap a bar to open that month.</div>';
+}
+
+// After a save: hop to the next unlogged day in the viewed week so a whole
+// week of catch-up is just tap-tap, tap-tap. Editor closes when week's done.
+// ---- Loans dashboard: every loan and pay plan side by side — remaining,
+// progress, payoff dates, and the one line that matters: the debt-free date.
+function bRenderLoans(){
+  const el = document.getElementById('bLoansPanel');
+  const loans = Object.entries(bstate.templates).filter(([,t])=>!t.archived && t.cat==='loan');
+  if (!loans.length){ el.classList.add('hidden'); return; }
+  el.classList.remove('hidden');
+  let remain=0, intMo=0, moEq=0, latest=null, anyBal=false;
+  const rows = [];
+  for (const [tid,t] of loans){
+    if (t.balance>0){ remain += t.balance; anyBal=true; }
+    if (t.apr>0 && t.balance>0) intMo += t.balance*t.apr/100/12;
+    moEq += bMonthlyEq(t);
+    const po = bLoanPayoff(tid, t);
+    if (po && po.left>0 && (!latest || po.date>latest)) latest = po.date;
+    rows.push([tid, t, po]);
+  }
+  const open = !!bstate.ui.loansOpen;
+  const head = '<button class="b-paneltog" data-btogloans="1">'
+    + '<span class="eyebrow">\uD83C\uDFE6 Loans</span>'
+    + '<span class="b-togval">'+(anyBal ? '$'+money(remain)+' left' : loans.length+' loan'+(loans.length===1?'':'s'))+' '+(open?'\u25BE':'\u25B8')+'</span></button>';
+  if (!open){ el.innerHTML = head; return; }
+  let html = head;
+  rows.sort((a,b)=>(b[1].balance||0)-(a[1].balance||0));
+  for (const [tid,t,po] of rows){
+    let sub = bCatLabel(t);
+    if (po){
+      sub = po.counted ? po.made+'/'+po.total+' paid' : '\u2248'+po.left+' left';
+      sub += po.left>0 ? ' \u00B7 done '+BMONTHS[po.date.getMonth()]+' '+po.date.getFullYear() : ' \u00B7 \uD83C\uDF89 done';
+    }
+    const isOpen = bLoanOpen === tid;
+    html += '<button class="b-tmplrow" style="width:100%; margin-top:8px'+(isOpen?'; border-color:var(--orange); border-radius:12px 12px 0 0; margin-bottom:0':'')+'" data-bloanview="'+tid+'">'
+      + '<span style="text-align:left; min-width:0"><div class="b-tmplinfo">'+bIconFor(t)+' '+escapeHtml(t.name)+'</div>'
+      + '<div class="b-tmplsub">'+sub+'</div></span>'
+      + '<span style="text-align:right"><div class="b-amt">'+(t.balance>0 ? '$'+money(t.balance) : '\u2014')+'</div>'
+      + '<div class="b-tmplsub">$'+money(bMonthlyEq(t))+'/mo</div></span></button>';
+    if (isOpen){
+      const hist = bPayHist(tid).filter(r=>!r.skip && (r.amt||0)>0).slice(-3).reverse();
+      const nd = bCardNextDue(tid); // works for any template: next unpaid instance
+      html += '<div style="border:1px solid var(--orange); border-top:none; border-radius:0 0 12px 12px; padding:12px 14px 14px; margin-bottom:8px">'
+        + '<div class="breakdown" style="margin:0">'
+        + (t.balance>0 ? '<div class="bd-line"><span>Remaining</span><span>$'+money(t.balance)+(t.balanceDate?' \u00B7 updated '+bFmtDue(fromKey(t.balanceDate)):'')+'</span></div>' : '')
+        + (po ? '<div class="bd-line"><span>Progress</span><span>'+(po.counted ? po.made+' of '+po.total+' \u00B7 '+po.left+' left' : '\u2248'+po.left+' payments left')+'</span></div>' : '')
+        + (po && po.left>0 ? '<div class="bd-line"><span>Paid off</span><span>'+bFmtDue(po.date)+' '+po.date.getFullYear()+' \u2014 frees $'+money(bMonthlyEq(t))+'/mo</span></div>' : '')
+        + (t.apr>0 && t.balance>0 ? '<div class="bd-line"><span>Interest</span><span>\u2248 $'+money(t.balance*t.apr/100/12)+'/mo at '+t.apr+'%</span></div>' : '')
+        + (bPaidThisMonth(tid) ? '<div class="bd-line"><span class="good">\u2713 '+BMONTHS[new Date().getMonth()]+' paid</span><span class="good">$'+money(bPaidThisMonth(tid).pay.amt||0)+'</span></div>' : '')
+        + (nd ? '<div class="bd-line"><span>Next payment</span><span>$'+money(bExpAmt(nd))+' due '+bFmtDue(nd.due)+'</span></div>' : '')
+        + hist.map(r=>'<div class="bd-line"><span class="dimtext">paid '+bFmtDue(fromKey(r.date||r.dueKey))+'</span><span class="dimtext">$'+money(r.amt||0)+'</span></div>').join('')
+        + '</div>'
+        + (po && po.counted && po.total>0 ? '<div class="b-prog" style="margin-top:10px"><div class="b-progfill" style="width:'+Math.round(po.made/Math.max(1,po.total)*100)+'%"></div></div>' : '')
+        + '<div class="compbtns" style="margin-top:10px">'
+        + (nd ? (bQPayAsk===nd.iid ? bQPayAskHtml(nd.iid) : '<button class="smallbtn primary" data-bqpay="'+nd.iid+'">\u2713 Mark paid $'+money(bExpAmt(nd))+'</button>') : '')
+        + '<button class="smallbtn" data-bedit="'+tid+'">Edit bill</button></div>'
+        + '</div>';
+    } else if (po && po.counted && po.total>0){
+      html += '<div class="b-prog" style="margin:6px 2px 2px"><div class="b-progfill" style="width:'+Math.round(po.made/Math.max(1,po.total)*100)+'%"></div></div>';
+    }
+  }
+  html += '<div class="b-tmplsub" style="text-align:right; margin-top:12px">'
+    + (anyBal ? 'Total remaining $'+money(remain)+' \u00B7 ' : '')
+    + '$'+money(moEq)+'/mo toward loans'
+    + (intMo>0 ? ' \u00B7 interest \u2248$'+money(intMo)+'/mo' : '')
+    + (latest ? '<br><b style="color:var(--green)">Debt-free '+BMONTHS[latest.getMonth()]+' '+latest.getFullYear()+'</b> \u2014 $'+money(moEq)+'/mo comes back to you' : '')
+    + '</div>';
+  el.innerHTML = html;
+}
+
+// ---- Cards dashboard: the four cards side by side — balances, utilization,
+// interest, next due. A *view* grouping; the due list keeps them in its timeline.
+// The quick-pay ask: amount prefilled with what's due — confirm, or type what you actually paid
+function bQPayAskHtml(iid){
+  const inst = bFindInst(iid);
+  const rem = inst ? bRemaining(inst) : 0;
+  return '<span class="b-qpayask">'
+    + '<input class="compinput" type="number" inputmode="decimal" step="0.01" value="'+(Math.round(rem*100)/100)+'">'
+    + '<button class="smallbtn primary" data-bqconfirm="'+iid+'">\u2713 Pay</button>'
+    + '<button class="smallbtn" data-bqcancel="1">\u2715</button></span>';
+}
+function bPaidThisMonth(tid){
+  const now = new Date();
+  for (const i of bInstancesFor(now.getFullYear(), now.getMonth())){
+    if (i.tid===tid && i.pay && !i.pay.skip && bRemaining(i)<=0) return i;
+  }
+  return null;
+}
+function bCardNextDue(tid){
+  const now = new Date(); now.setHours(0,0,0,0);
+  for (let off=0; off<3; off++){
+    const d = new Date(now.getFullYear(), now.getMonth()+off, 1);
+    for (const i of bInstancesFor(d.getFullYear(), d.getMonth())){
+      if (i.tid===tid && bRemaining(i)>0 && i.due >= now) return i;
+    }
+  }
+  return null;
+}
+function bRenderCards(){
+  const el = document.getElementById('bCardsPanel');
+  const cards = Object.entries(bstate.templates).filter(([,t])=>!t.archived && t.cat==='card');
+  if (!cards.length){ el.classList.add('hidden'); return; }
+  el.classList.remove('hidden');
+  let bal=0, lim=0, intMo=0;
+  for (const [,t] of cards){ bal += t.balance||0; lim += t.creditLimit||0; if (t.apr>0 && t.balance>0) intMo += t.balance*t.apr/100/12; }
+  const util = lim>0 ? Math.round(bal/lim*100) : 0;
+  const open = !!bstate.ui.cardsOpen;
+  const head = '<button class="b-paneltog" data-btogcards="1">'
+    + '<span class="eyebrow">\uD83D\uDCB3 Cards</span>'
+    + '<span class="b-togval">'+(bal>0 ? '$'+money(bal)+(lim>0?' \u00B7 '+util+'%':'') : cards.length+' card'+(cards.length===1?'':'s'))+' '+(open?'\u25BE':'\u25B8')+'</span></button>';
+  if (!open){ el.innerHTML = head; return; }
+  let html = head;
+  for (const [tid,t] of cards.sort((a,b)=>(b[1].balance||0)-(a[1].balance||0))){
+    const u = t.creditLimit>0 ? Math.round((t.balance||0)/t.creditLimit*100) : null;
+    const nd = bCardNextDue(tid);
+    const uCol = u===null ? 'var(--dim)' : (u<30?'var(--green)':u<=70?'var(--orange)':'var(--red)');
+    const isOpen = bCardOpen === tid;
+    html += '<button class="b-tmplrow" style="width:100%; margin-top:8px'+(isOpen?'; border-color:var(--orange); border-radius:12px 12px 0 0; margin-bottom:0':'')+'" data-bcardview="'+tid+'">'
+      + '<span style="text-align:left; min-width:0"><div class="b-tmplinfo">'+bIconFor(t)+' '+escapeHtml(t.name)+'</div>'
+      + '<div class="b-tmplsub">'+(nd ? 'next: $'+money(bExpAmt(nd))+' due '+bFmtDue(nd.due) : 'nothing due')+'</div></span>'
+      + '<span style="text-align:right"><div class="b-amt">'+(t.balance>0 ? '$'+money(t.balance) : '\u2014')+'</div>'
+      + (u!==null ? '<div class="b-tmplsub" style="color:'+uCol+'; font-weight:600">'+u+'% used</div>'
+                  : '<div class="b-tmplsub">tap for details</div>')+'</span></button>';
+    if (isOpen){
+      const hist = bPayHist(tid).filter(r=>!r.skip && (r.amt||0)>0).slice(-3).reverse();
+      html += '<div style="border:1px solid var(--orange); border-top:none; border-radius:0 0 12px 12px; padding:12px 14px 14px; margin-bottom:8px">'
+        + '<div class="breakdown" style="margin:0">'
+        + (t.balance>0 ? '<div class="bd-line"><span>Balance</span><span>$'+money(t.balance)+(t.balanceDate?' \u00B7 updated '+bFmtDue(fromKey(t.balanceDate)):'')+'</span></div>' : '')
+        + (t.creditLimit>0 ? '<div class="bd-line"><span>Limit / available</span><span>$'+money(t.creditLimit)+' \u00B7 $'+money(Math.max(0,t.creditLimit-(t.balance||0)))+' free</span></div>' : '')
+        + (t.apr>0 && t.balance>0 ? '<div class="bd-line"><span>Interest</span><span>\u2248 $'+money(t.balance*t.apr/100/12)+'/mo at '+t.apr+'%</span></div>' : '')
+        + (t.stmtDay ? '<div class="bd-line"><span>Statement closes</span><span>'+(t.stmtDay>=31?'last day of month':'the '+t.stmtDay+bOrd(t.stmtDay))+'</span></div>' : '')
+        + (bPaidThisMonth(tid) ? '<div class="bd-line"><span class="good">\u2713 '+BMONTHS[new Date().getMonth()]+' paid</span><span class="good">$'+money(bPaidThisMonth(tid).pay.amt||0)+'</span></div>' : '')
+        + (nd ? '<div class="bd-line"><span>Next payment</span><span>$'+money(bExpAmt(nd))+' due '+bFmtDue(nd.due)+'</span></div>' : '')
+        + hist.map(r=>'<div class="bd-line"><span class="dimtext">paid '+bFmtDue(fromKey(r.date||r.dueKey))+'</span><span class="dimtext">$'+money(r.amt||0)+'</span></div>').join('')
+        + '</div>'
+        + (u!==null ? '<div class="b-prog" style="margin-top:10px"><div class="b-progfill'+(u<30?'':(u<=70?' warn':' bad'))+'" style="width:'+Math.min(100,u)+'%"></div></div>' : '')
+        + '<div class="compbtns" style="margin-top:10px">'
+        + (nd ? (bQPayAsk===nd.iid ? bQPayAskHtml(nd.iid) : '<button class="smallbtn primary" data-bqpay="'+nd.iid+'">\u2713 Mark paid $'+money(bExpAmt(nd))+'</button>') : '')
+        + '<button class="smallbtn" data-bedit="'+tid+'">Edit bill</button></div>'
+        + '</div>';
+    }
+  }
+  if (lim>0){
+    html += '<div class="b-prog" style="margin-top:12px"><div class="b-progfill'+(util<30?'':(util<=70?' warn':' bad'))+'" style="width:'+Math.min(100,util)+'%"></div></div>'
+      + '<div class="b-tmplsub" style="text-align:right">Total $'+money(bal)+' of $'+money(lim)+' ('+util+'%)'
+      + (intMo>0 ? ' \u00B7 interest \u2248$'+money(intMo)+'/mo' : '')+'</div>';
+  }
+  el.innerHTML = html;
+}
+
+// ---- Cards dashboard end ----
+let bQPayAsk = null;     // instance mid quick-pay: asking how much was paid
+let bCardOpen = null;    // card expanded in the Cards dashboard
+let bLoanOpen = null;    // loan expanded in the Loans dashboard
+
+function bRow(i, todayK){
+  const dueK = toKey(i.due);
+  const rem0 = bRemaining(i);
+  const isOver = rem0>0 && dueK < todayK && isThisMonthOrPast(i.due.getFullYear(), i.due.getMonth());
+  const conf = (bConfirm && bConfirm.iid===i.iid) ? bConfirm : null;
+  const open = bOpen === i.iid && !conf;
+  const rem = bRemaining(i);
+  const settled = rem<=0 && !!i.pay;
+  const isPartial = !!(i.pay && i.pay.partial && rem>0);
+  const amt = settled ? bExpAmt(i) : rem;
+  const creep = bCreep(i.tid);
+  const card = document.createElement('div');
+  card.className = 'day'+(open?' open':'')+(isOver?' b-over':'')+(!isOver && i._tier===1?' b-t1':'')+(!isOver && i._tier===2?' b-t2':'')+(settled && !conf?' b-paidrow':'')
+    +(conf && conf.mode==='del'?' confirm':'')+(conf && conf.mode==='menu'?' b-menu':'');
+  let sub = bIconFor(i.t)+' '+bCatLabel(i.t) + (i.t.autopay ? ' \u00B7 autopay' : '');
+  if (i.t.cat==='loan'){
+    const po = bLoanPayoff(i.tid, i.t);
+    if (po && po.counted) sub += ' \u00B7 '+po.made+'/'+po.total+' paid';
+  }
+  if (creep && !i.pay) sub += ' \u00B7 <span class="warn">\u25B2 running '+creep+'% high</span>';
+  card.innerHTML =
+    '<button class="dayhead" data-bopen="'+i.iid+'">'
+    + '<span><span class="b-name">'+escapeHtml(i.t.name)
+    + (isPartial ? '<span class="b-badge" style="color:var(--orange); border-color:var(--orange)">\u25D0 partial</span>'
+       : (!i.pay && bstate.overrides[i.iid]>0 ? '<span class="b-badge" style="color:var(--green); border-color:var(--green)">billed</span>'
+       : (i.t.varies&&!i.pay ? '<span class="b-badge">~est</span>' : '')))
+    + '</span>'
+    + '<span class="b-sub">'+sub+(isPartial ? ' \u00B7 paid $'+money(i.pay.amt||0)+' of $'+money(bExpAmt(i)) : '')+'</span></span>'
+    + '<span style="text-align:right"><span class="b-amt'+(settled?' paid':'')+'">'
+    + (settled?'\u2713 ':'')+(i.pay && i.pay.skip ? 'skipped' : '$'+money(amt))+'</span>'
+    + '<span class="b-duetag'+(isOver?' over':'')+(!isOver && i._tier===1 && !settled?' t1':'')+'">'
+    + (settled ? (i.pay.skip ? 'this month' : 'paid '+bFmtPaidDate(i.pay)) : (isOver?'was due ':'due ')+bFmtDue(i.due))+'</span></span>'
+    + '</button>'
+    + (conf && conf.mode==='menu' ?
+      (bQPayAsk===i.iid
+        ? '<div class="confirmbody">'
+          + '<span class="confirmtext" style="color:var(--text); flex:none">Pay '+escapeHtml(i.t.name)+'</span>'
+          + bQPayAskHtml(i.iid)
+          + '</div>'
+        : '<div class="confirmbody">'
+          + '<span class="confirmtext" style="color:var(--text); min-width:0">'+escapeHtml(i.t.name)+'</span>'
+          + '<button class="confirmbtn keep" data-bcancelmenu="1">Cancel</button>'
+          + (bRemaining(i)<=0 && i.pay
+            ? '<button class="confirmbtn keep" data-bqundo="'+i.iid+'">Undo</button>'
+            : '<button class="confirmbtn" style="background:var(--green); color:#14181D" data-bqpay="'+i.iid+'">\u2713 Paid</button>')
+          + '<button class="confirmbtn del" data-bdelask="1">Delete</button>'
+          + '</div>') : '')
+    + (conf && conf.mode==='del' ?
+      '<div class="confirmbody">'
+      + '<span class="confirmtext">Delete '+escapeHtml(i.t.name)+' and stop tracking it? Past payments are kept.</span>'
+      + '<button class="confirmbtn keep" data-bkeep2="1">Keep</button>'
+      + '<button class="confirmbtn del" data-bconfdel2="'+i.tid+'">Delete</button>'
+      + '</div>' : '')
+    + (open ? bExpanded(i, amt) : '');
+  return card;
+}
+function bFmtPaidDate(p){ return p.date ? bFmtDue(fromKey(p.date)) : ''; }
+
+function bExpanded(i, amt){
+  const t = i.t;
+  const lines = [];
+  lines.push(['Due', bFmtDue(i.due)+' \u00B7 '+(BFREQS[t.freq]||t.freq)]);
+  if (t.autopay) lines.push(['Autopay','On \u2014 just confirm it went through']);
+  if (t.cat==='card' && t.stmtDay) lines.push(['Statement closes', t.stmtDay>=31 ? 'the last day of the month' : 'the '+t.stmtDay+bOrd(t.stmtDay)+' of the month']);
+  let cardBarHtml = '';
+  if (t.cat==='card' && (t.creditLimit>0 || t.balance>0)){
+    if (t.creditLimit>0){
+      const util = Math.round((t.balance||0)/t.creditLimit*100);
+      lines.push(['Balance','$'+money(t.balance||0)+' of $'+money(t.creditLimit)+' ('+util+'%)']);
+      lines.push(['Available','$'+money(Math.max(0, t.creditLimit-(t.balance||0)))]);
+      if (t.apr>0 && t.balance>0) lines.push(['Interest cost','\u2248 $'+money((t.balance||0)*t.apr/100/12)+'/mo at '+t.apr+'% APR']);
+      const cls = util<30?'':(util<=70?' warn':' bad');
+      cardBarHtml = '<div class="b-prog"><div class="b-progfill'+cls+'" style="width:'+Math.min(100,util)+'%"></div></div>'
+        + '<div class="b-tmplsub" style="text-align:right">'+(util<30?'under 30% \u2014 good for your credit score':util+'% utilization')
+        + (t.balanceDate? ' \u00B7 updated '+bFmtDue(fromKey(t.balanceDate)) : '')+'</div>';
+    } else {
+      lines.push(['Balance','$'+money(t.balance||0)+(t.balanceDate? ' \u00B7 updated '+bFmtDue(fromKey(t.balanceDate)) : '')]);
+      if (t.apr>0 && t.balance>0) lines.push(['Interest cost','\u2248 $'+money((t.balance||0)*t.apr/100/12)+'/mo at '+t.apr+'% APR']);
+    }
+  }
+  const hist = bPayHist(i.tid);
+  if (t.cat==='loan'){
+    if (t.balance>0){
+      lines.push(['Remaining','$'+money(t.balance)+(t.balanceDate? ' \u00B7 updated '+bFmtDue(fromKey(t.balanceDate)) : '')]);
+      if (t.apr>0) lines.push(['Interest cost','\u2248 $'+money(t.balance*t.apr/100/12)+'/mo at '+t.apr+'% APR']);
+    }
+    const po = bLoanPayoff(i.tid, t);
+    if (po){
+      const freesUp = '$'+money(bMonthlyEq(t))+'/mo';
+      if (po.counted) lines.push(['Progress', po.made+' of '+po.total+' payments \u00B7 '+po.left+' left']);
+      else lines.push(['Payments left','\u2248 '+po.left+' (from balance \u00F7 payment)']);
+      if (po.left>0) lines.push(['Paid off', bFmtDue(po.date)+' '+po.date.getFullYear()+' \u2014 frees up '+freesUp]);
+      else lines.push(['Paid off','\uD83C\uDF89 Done \u2014 '+freesUp+' freed up']);
+    }
+  }
+  if (t.cat==='sub'){
+    const mo = bMonthlyEq(t);
+    lines.push(['Costs you','$'+money(mo)+'/mo \u2248 $'+money(mo*12)+'/yr']);
+  }
+  if (hist.length){
+    const avg = bAvgPaid(i.tid);
+    lines.push(['Usual amount','$'+money(avg)+' avg over last '+Math.min(6,hist.length)]);
+  }
+  let html = '<div class="breakdown" style="margin:0 12px 4px">'
+    + lines.map(([l,v])=>'<div class="bd-line"><span>'+l+'</span><span>'+v+'</span></div>').join('');
+  if (t.cat==='loan'){
+    const po = bLoanPayoff(i.tid, t);
+    if (po && po.counted && po.total>0){
+      html += '<div class="b-prog"><div class="b-progfill" style="width:'+Math.round(po.made/Math.max(1,po.total)*100)+'%"></div></div>';
+    }
+  }
+  html += cardBarHtml;
+  if (hist.length){
+    const recent = hist.slice(-4).reverse();
+    html += recent.map(r=>'<div class="bd-line"><span class="dimtext">'+bFmtDue(fromKey(r.date||r.dueKey))+(r.note?' \u00B7 '+escapeHtml(r.note):'')+'</span><span class="dimtext">$'+money(r.amt||0)+'</span></div>').join('');
+  }
+  html += '</div>';
+
+  if (bRemaining(i) <= 0 && i.pay){
+    html += '<div class="b-payform" style="margin:0 12px 14px; border-top:none; padding-top:2px">'
+      + '<div class="compbtns">'
+      + '<button class="smallbtn danger" data-bunpay="'+i.iid+'">'+(i.pay.skip?'Undo skip':'Undo payment')+'</button>'
+      + '<button class="smallbtn" data-bedit="'+i.tid+'">Edit bill</button>'
+      + '</div></div>';
+  } else {
+    const rem = bRemaining(i);
+    html += '<div class="b-payform" style="margin:0 12px 14px">'
+      + (i.pay && i.pay.partial ? '<div class="compresult" style="margin-bottom:8px"><span class="b-creep">\u25D0 Paid $'+money(i.pay.amt||0)+' so far \u2014 $'+money(rem)+' still owed.</span></div>' : '')
+      + '<div class="compform">'
+      + '<div class="comprow"><label for="bPayAmt">Amount paid</label>'
+      + '<input class="compinput" id="bPayAmt" type="number" inputmode="decimal" step="0.01" value="'+(rem? rem.toFixed(2):'')+'"></div>'
+      + '<div class="comprow"><label for="bPayDate">Date paid</label>'
+      + '<input class="compinput" id="bPayDate" type="date" style="width:160px" value="'+bTodayKey()+'"></div>'
+      + '<label class="skiprow"><input type="checkbox" id="bPayPartial"> Partial payment \u2014 keep the rest due</label>'
+      + '<input class="noteinput" id="bPayNote" type="text" maxlength="60" placeholder="Note (optional) \u2014 confirmation #, partial payment\u2026">'
+      + '<div class="compbtns">'
+      + '<button class="smallbtn primary" data-bpay="'+i.iid+'">\u2713 Mark paid</button>'
+      + '<button class="smallbtn" data-bamt="'+i.iid+'" title="Statement arrived? Save the real amount without marking it paid">Save amount</button>'
+      + '<button class="smallbtn" data-bskip="'+i.iid+'" title="Deferred, waived, or promo month \u2014 counts as handled at $0">Skip</button>'
+      + '</div>'
+      + '<div class="compbtns" style="margin-top:2px">'
+      + (i.pay ? '<button class="smallbtn danger" data-bunpay="'+i.iid+'">Undo payments</button>' : '')
+      + '<button class="smallbtn" data-bedit="'+i.tid+'">Edit bill</button>'
+      + '</div></div></div>';
+  }
+  return html;
+}
+function bOrd(n){ const s=['th','st','nd','rd'], v=n%100; return s[(v-20)%10]||s[v]||s[0]; }
+
+function bRenderSummary(insts, y, m){
+  const el = document.getElementById('bSummary');
+  if (!insts.length){ el.classList.add('hidden'); return; }
+  el.classList.remove('hidden');
+  let due=0, paidSum=0;
+  const byCat = {};
+  for (const i of insts){
+    const a = bExpAmt(i);
+    due += a;
+    if (i.pay && !i.pay.skip) paidSum += Math.min(a, i.pay.amt||0);
+    byCat[i.t.cat] = (byCat[i.t.cat]||0) + a;
+  }
+  const open = !!bstate.ui.sumOpen;
+  const head = '<button class="b-paneltog" data-btogsum="1">'
+    + '<span class="eyebrow">\uD83D\uDCC8 '+BMONTHS[m]+' insights</span>'
+    + '<span class="b-togval">'+((due-paidSum)>0 ? '$'+money(due-paidSum)+' to pay' : 'all paid \u2713')+' '+(open?'\u25BE':'\u25B8')+'</span>'
+    + '</button>';
+  if (!open){ el.innerHTML = head; return; }
+  const debt = (byCat.card||0)+(byCat.loan||0);
+  const living = (byCat.housing||0)+(byCat.utility||0)+(byCat.other||0);
+  let subMo = 0, subN = 0;
+  for (const t of Object.values(bstate.templates)){
+    if (!t.archived && t.cat==='sub'){ subMo += bMonthlyEq(t); subN++; }
+  }
+  const streak = bStreak();
+  let cardBal=0, cardLim=0;
+  for (const t of Object.values(bstate.templates)){
+    if (!t.archived && t.cat==='card'){ cardBal += t.balance||0; cardLim += t.creditLimit||0; }
+  }
+  const cells = [
+    ['Total this month','$'+money(due),'var(--text)'],
+    ['Paid so far','$'+money(paidSum),'var(--green)'],
+    ['Still to pay','$'+money(due-paidSum),(due-paidSum)>0?'var(--orange)':'var(--green)'],
+    ['Debt (cards + loans)','$'+money(debt),'var(--dim)'],
+    ['Living costs','$'+money(living),'var(--dim)'],
+    ['Subscriptions','$'+money(subMo)+'/mo','var(--dim)'],
+  ];
+  if (cardBal>0){
+    const util = cardLim>0 ? Math.round(cardBal/cardLim*100) : 0;
+    cells.push(['Card balances','$'+money(cardBal)+(cardLim>0? ' ('+util+'%)':''), cardLim>0 ? (util<30?'var(--green)':util<=70?'var(--orange)':'var(--red)') : 'var(--dim)']);
+    let intMo = 0;
+    for (const t of Object.values(bstate.templates)){
+      if (!t.archived && t.cat==='card' && t.apr>0 && t.balance>0) intMo += t.balance*t.apr/100/12;
+    }
+    if (intMo>0) cells.push(['Card interest','\u2248 $'+money(intMo)+'/mo','var(--red)']);
+  }
+  el.innerHTML = head
+    + '<div class="grid2">'+cells.map(([l,v,c])=>'<div><div class="glabel">'+l+'</div><div class="gval" style="color:'+c+'">'+v+'</div></div>').join('')+'</div>'
+    + '<div class="projnote">'
+    + (subN>0 ? subN+' subscription'+(subN===1?'':'s')+' = $'+money(subMo*12)+'/yr \u2014 the quietest leak there is. ' : '')
+    + (streak>0 ? '\uD83D\uDD25 '+streak+' month'+(streak===1?'':'s')+' with everything paid on time.' : '')
+    + '</div>';
+}
+
+// ============ MANAGE / EDITOR ============
+function bRenderManage(){
+  const el = document.getElementById('bManage');
+  el.classList.toggle('hidden', !bManageOpen);
+  if (!bManageOpen){ return; }
+  let html = '<div class="setrow" style="align-items:center"><label>Color</label><div class="b-swatches">'
+    + Object.entries(BPALS).map(([k,p])=>{
+        const c = p.dark ? p.dark.acc : 'var(--orange)';
+        const on = (bstate.settings.palette||'ocean')===k;
+        return '<button class="b-swatch'+(on?' on':'')+'" data-bpal="'+k+'" style="background:'+c+'" aria-label="'+p.label+'" title="'+p.label+'"></button>';
+      }).join('')
+    + '</div></div>'
+    + '<div class="b-tmplsub" style="text-align:right; margin:-4px 2px 10px">'+ (BPALS[bstate.settings.palette||'ocean']||BPALS.ocean).label +' \u2014 only recolors the Bills tab</div>';
+
+  if (bEdit === null){
+    html += '<div class="compbtns" style="margin:10px 0"><button class="smallbtn primary" data-bnew="1">+ New bill</button></div>'
+      + '<div class="b-tmplsub" style="margin:2px 0 0">Quick add \u2014 tap one, then just enter the amount and due day:</div>'
+      + '<div class="b-quickrow">'
+      + BQUICK.map((q,ix)=>'<button class="b-quick" data-bquick="'+ix+'">'+bIconFor({name:q[0],cat:q[1]})+' '+q[0]+'</button>').join('')
+      + '</div>';
+  }
+
+  const tmpls = Object.entries(bstate.templates).filter(([,t])=>!t.archived)
+    .sort((a,b)=> a[1].name.localeCompare(b[1].name));
+  if (tmpls.length){
+    html += '<p class="setsection">Your bills \u2014 tap to edit. Amounts, due days, and past payments all stay editable.</p>';
+    html += tmpls.map(([id,t])=>{
+      const cat = BCATS[t.cat]||BCATS.other;
+      return '<button class="b-tmplrow" style="width:100%" data-bedit="'+id+'">'
+        + '<span style="text-align:left"><div class="b-tmplinfo">'+bIconFor(t)+' '+escapeHtml(t.name)+'</div>'
+        + '<div class="b-tmplsub">'+(BFREQS[t.freq]||t.freq)+' \u00B7 $'+money(t.amt||0)+(t.varies?' ~':'')+(t.autopay?' \u00B7 autopay':'')+'</div></span>'
+        + '<span class="b-amt" style="color:var(--dim)">\u203A</span></button>';
+    }).join('');
+  }
+  el.innerHTML = html;
+}
+
+function bBlankDraft(){
+  return { name:'', cat:'other', freq:'monthly', amt:'', dueDay:1, dueMonth:new Date().getMonth(),
+    anchor:bTodayKey(), autopay:false, varies:false, stmtDay:'', loanTotal:'', loanPaid:'', icon:'',
+    creditLimit:'', balance:'', apr:'',
+    startNext:false, startTouched:false, catTouched:false };
+}
+function bEditorHtml(){
+  const d = bDraft;
+  const isNew = bEdit==='new';
+  const num = (id,label,val,ph)=>'<div class="comprow" style="margin-bottom:8px"><label for="'+id+'">'+label+'</label>'
+    + '<input class="compinput" id="'+id+'" type="number" inputmode="decimal" value="'+val+'" placeholder="'+(ph||'')+'"></div>';
+  let html = '<div class="b-editor">'
+    + '<div class="eyebrow" style="margin-bottom:10px">'+(isNew?'New bill':'Edit bill')+'</div>'
+    + '<div class="comprow" style="margin-bottom:8px"><label for="bfName">Name</label>'
+    + '<input class="compinput" id="bfName" type="text" style="flex:1; max-width:230px; text-align:left" maxlength="40" placeholder="e.g. Rent, Visa, Netflix" value="'+escapeAttr(d.name)+'"></div>'
+    + '<div class="comprow" style="margin-bottom:8px"><label>Type</label><div class="seg" style="flex-wrap:wrap; justify-content:flex-end">'
+    + Object.entries(BCATS).map(([k,c])=>'<button class="segbtn'+(d.cat===k?' on':'')+'" data-bcat="'+k+'">'+c.ic+'</button>').join('')
+    + '</div></div>'
+    + '<div class="b-tmplsub" id="bfCatLabel" style="text-align:right; margin:-4px 0 8px">'+(BCATS[d.cat].label)+'</div>'
+    + '<div class="b-tmplsub" style="margin:0 0 4px">Icon \u2014 picked automatically from the name (<span id="bfIconAuto">'+bIconFor({name:d.name, cat:d.cat})+'</span>), or choose:</div>'
+    + '<div class="b-iconrow">'
+    + '<button class="b-iconbtn auto'+(!d.icon?' on':'')+'" data-bicon="">Auto</button>'
+    + BICONS.map(ic=>'<button class="b-iconbtn'+(d.icon===ic?' on':'')+'" data-bicon="'+ic+'">'+ic+'</button>').join('')
+    + '</div>'
+    + '<div class="comprow" style="margin-bottom:8px"><label>Repeats</label><div class="seg" style="flex-wrap:wrap; justify-content:flex-end">'
+    + Object.entries(BFREQS).map(([k,l])=>'<button class="segbtn'+(d.freq===k?' on':'')+'" data-bfreq="'+k+'" style="font-size:11px">'+l+'</button>').join('')
+    + '</div></div>'
+    + num('bfAmt','Amount ($)', d.amt, '0.00');
+  if (d.freq==='monthly' || d.freq==='quarterly' || d.freq==='yearly')
+    html += num('bfDueDay','Due on day (1\u201331)', d.dueDay)
+         +  '<div class="b-tmplsub" style="text-align:right; margin:-4px 0 8px">31 = always the last day \u2014 short months adjust automatically</div>';
+  if (isNew && (d.freq==='monthly' || d.freq==='quarterly')){
+    if (!d.startTouched) d.startNext = (parseInt(d.dueDay)||1) < new Date().getDate(); // day already passed? assume next month
+    html += '<div class="comprow" style="margin-bottom:8px"><label>First due</label><div class="seg">'
+      + '<button class="segbtn'+(!d.startNext?' on':'')+'" data-bstart="0">This month</button>'
+      + '<button class="segbtn'+(d.startNext?' on':'')+'" data-bstart="1">Next month</button>'
+      + '</div></div>'
+      + (d.startNext ? '<div class="b-tmplsub" style="text-align:right; margin:-4px 0 8px">Won\u2019t appear (or count as overdue) until next month.</div>' : '');
+  }
+  if (d.freq==='yearly' || d.freq==='quarterly')
+    html += '<div class="comprow" style="margin-bottom:8px"><label for="bfDueMonth">'+(d.freq==='yearly'?'Due month':'Anchor month')+'</label>'
+      + '<select class="compinput" id="bfDueMonth" style="width:130px">'
+      + BMONTHS.map((mo,i)=>'<option value="'+i+'"'+(d.dueMonth===i?' selected':'')+'>'+mo+'</option>').join('')+'</select></div>';
+  if (d.freq==='once' || d.freq==='weekly' || d.freq==='biweekly')
+    html += '<div class="comprow" style="margin-bottom:8px"><label for="bfAnchor">'+(d.freq==='once'?'Due date':'First due date')+'</label>'
+      + '<input class="compinput" id="bfAnchor" type="date" style="width:160px" value="'+d.anchor+'"></div>';
+  if (d.cat==='card')
+    html += num('bfStmt','Statement closes (day, 31 = last)', d.stmtDay, 'optional')
+         +  num('bfLimit','Credit limit ($)', d.creditLimit, 'optional')
+         +  num('bfBal','Current balance ($)', d.balance, 'optional')
+         +  num('bfApr','APR (%)', d.apr, 'optional');
+  if (d.cat==='loan')
+    html += num('bfLoanTotal','Total # of payments', d.loanTotal, 'e.g. 24')
+         +  num('bfLoanPaid','Payments made before app (count)', d.loanPaid, 'e.g. 7')
+         +  num('bfBal','Remaining balance ($)', d.balance, 'optional')
+         +  num('bfApr','APR (%)', d.apr, 'optional');
+  html += '<label class="skiprow"><input type="checkbox" id="bfVaries"'+(d.varies?' checked':'')+'> Amount varies (electric, gas\u2026) \u2014 estimate from history</label>'
+    + '<label class="skiprow" style="margin-bottom:8px"><input type="checkbox" id="bfAutopay"'+(d.autopay?' checked':'')+'> On autopay</label>'
+    + '<div class="compbtns">'
+    + '<button class="smallbtn primary" data-bsavetmpl="1">Save bill</button>'
+    + '<button class="smallbtn" data-bcanceltmpl="1">Cancel</button>'
+    + '</div>'
+    + (!isNew ? (bConfirmDel
+        ? '<div class="compbtns" style="margin-top:8px"><span class="confirmtext" style="align-self:center">Delete this bill? History is kept.</span>'
+          + '<button class="smallbtn danger" data-bconfdel="1">Delete</button><button class="smallbtn" data-bkeeptmpl="1">Keep</button></div>'
+        : '<div class="compbtns" style="margin-top:8px"><button class="smallbtn danger" data-bdel="1">Delete bill</button></div>') : '')
+    + '</div>';
+  return html;
+}
+function bReadDraftInputs(){
+  const g = id => document.getElementById(id);
+  if (g('bfName')) bDraft.name = g('bfName').value;
+  if (g('bfAmt')) bDraft.amt = g('bfAmt').value;
+  if (g('bfDueDay')) bDraft.dueDay = parseInt(g('bfDueDay').value)||1;
+  if (g('bfDueMonth')) bDraft.dueMonth = parseInt(g('bfDueMonth').value)||0;
+  if (g('bfAnchor') && g('bfAnchor').value) bDraft.anchor = g('bfAnchor').value;
+  if (g('bfStmt')) bDraft.stmtDay = g('bfStmt').value;
+  if (g('bfLimit')) bDraft.creditLimit = g('bfLimit').value;
+  if (g('bfBal')) bDraft.balance = g('bfBal').value;
+  if (g('bfApr')) bDraft.apr = g('bfApr').value;
+  if (g('bfLoanTotal')) bDraft.loanTotal = g('bfLoanTotal').value;
+  if (g('bfLoanPaid')) bDraft.loanPaid = g('bfLoanPaid').value;
+  if (g('bfVaries')) bDraft.varies = g('bfVaries').checked;
+  if (g('bfAutopay')) bDraft.autopay = g('bfAutopay').checked;
+}
+
+// ============ BILLS EVENTS ============
+document.addEventListener('click', (e)=>{
+  const t = e.target.closest('button');
+  bUpdateStrip(); // hours are logged via buttons, so this keeps the Pay-screen strip live
+  if (!t) return;
+  const ds = t.dataset;
+
+  // Remember which tab you're on, so reopening the app lands you back there
+
+  if (ds.bshowpaid!==undefined){ bShowPaid = true; renderBills(); return; }
+  if (ds.bshowsubs!==undefined){ bShowSubs = true; renderBills(); return; }
+  if (ds.bhidesubs!==undefined){ bShowSubs = false; renderBills(); return; }
+  if (ds.bhidepaid!==undefined){ bShowPaid = false; renderBills(); return; }
+  if (ds.bcancelmenu!==undefined){ bConfirm=null; renderBills(); return; }
+  if (ds.bqpay!==undefined){
+    bQPayAsk = ds.bqpay; renderBills(); return; // ask how much first — prefilled with the remainder
+  }
+  if (ds.bqcancel!==undefined){ bQPayAsk=null; renderBills(); return; }
+  if (ds.bqconfirm!==undefined){
+    const wrap = t.closest('.b-qpayask');
+    const inp = wrap && wrap.querySelector('input');
+    const amt = inp ? parseFloat(inp.value) : NaN;
+    const inst = bFindInst(ds.bqconfirm);
+    if (inst && !isNaN(amt) && amt>0){
+      const rem = bRemaining(inst);
+      const prev = inst.pay;
+      const base = (prev && prev.partial ? (prev.amt||0) : 0);
+      const isPartial = amt < rem - 0.005; // paid less than owed -> remainder stays due
+      bstate.payments[ds.bqconfirm] = { amt: base + amt, date: bTodayKey(), note: (prev && prev.note)||'', partial: isPartial };
+      bsave();
+    }
+    bQPayAsk=null; bConfirm=null; renderBills(); return;
+  }
+  if (ds.bqundo!==undefined){ delete bstate.payments[ds.bqundo]; bsave(); bConfirm=null; renderBills(); return; }
+  if (ds.bdelask!==undefined){ if (bConfirm) bConfirm = { iid:bConfirm.iid, mode:'del' }; renderBills(); return; }
+  if (ds.bkeep2!==undefined){ bConfirm=null; renderBills(); return; }
+  if (ds.bconfdel2!==undefined){
+    const t0 = bstate.templates[ds.bconfdel2];
+    if (t0){ t0.archived = true; bsave(); } // soft delete — payment history stays
+    bConfirm=null; bOpen=null; renderBills(); return;
+  }
+  if (ds.btogsum!==undefined){ bstate.ui.sumOpen = !bstate.ui.sumOpen; bsave(); renderBills(); return; }
+  if (ds.btogcards!==undefined){ bstate.ui.cardsOpen = !bstate.ui.cardsOpen; bsave(); renderBills(); return; }
+  if (ds.btogloans!==undefined){ bstate.ui.loansOpen = !bstate.ui.loansOpen; bsave(); renderBills(); return; }
+  if (ds.bcardview!==undefined){ bCardOpen = (bCardOpen===ds.bcardview ? null : ds.bcardview); renderBills(); return; }
+  if (ds.bloanview!==undefined){ bLoanOpen = (bLoanOpen===ds.bloanview ? null : ds.bloanview); renderBills(); return; }
+  if (t.id==='bHistoryBtn'){ bstate.ui.yearOpen = !bstate.ui.yearOpen; bsave(); renderBills(); return; }
+  if (ds.btogyear!==undefined){ bstate.ui.yearOpen = !bstate.ui.yearOpen; bsave(); renderBills(); return; }
+  if (ds.bgotm!==undefined){
+    const [gy, gm] = ds.bgotm.split('-').map(Number);
+    bMonth = new Date(gy, gm-1, 1);
+    bOpen=null; bConfirm=null; bShowPaid=true; bShowSubs=false; // opening a past month? you're here for what was paid
+    renderBills();
+    window.scrollTo({top:0, behavior:'smooth'});
+    return;
+  }
+  if (ds.bquick!==undefined){
+    const q = BQUICK[+ds.bquick];
+    if (q){
+      bEdit='new'; bDraft=bBlankDraft(); bConfirmDel=false;
+      bDraft.name=q[0]; bDraft.cat=q[1]; bDraft.freq=q[2]; bDraft.catTouched=true;
+      renderBills();
+      const box=document.getElementById('bEditorBox'); if(box) box.scrollIntoView({behavior:'smooth', block:'start'});
+      const nm=document.getElementById('bfAmt'); if(nm) nm.focus();
+    }
+    return;
+  }
+
+  if (t.id==='bPrevMonth' || t.id==='bNextMonth'){
+    bMonth.setMonth(bMonth.getMonth() + (t.id==='bNextMonth'?1:-1));
+    bOpen=null; bConfirm=null; bQPayAsk=null; bShowPaid=true; bShowSubs=false; renderBills(); return;
+  }
+  if (t.id==='bMonthHome'){
+    bMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+    bOpen=null; bConfirm=null; bShowPaid=true; bShowSubs=false; renderBills(); return;
+  }
+  if (t.id==='bManageBtn'){ bManageOpen=!bManageOpen; if(!bManageOpen){bConfirmDel=false;} renderBills(); return; }
+  if (t.id==='bAddBill'){
+    bEdit='new'; bDraft=bBlankDraft(); bConfirmDel=false; renderBills();
+    const box=document.getElementById('bEditorBox'); if(box) box.scrollIntoView({behavior:'smooth', block:'start'});
+    const nm=document.getElementById('bfName'); if(nm) nm.focus();
+    return;
+  }
+
+  if (ds.bsnapok!==undefined){ bstate.ui.snapDismissed=true; bsave(); renderBills(); return; }
+  if (ds.bbaksnooze!==undefined){ bstate.ui.backupSnooze = bTodayKey(); bsave(); renderBills(); return; }
+  if (ds.btogsts!==undefined){ bstate.ui.stsOpen = !bstate.ui.stsOpen; bsave(); renderBills(); return; }
+  if (ds.bopen!==undefined){
+    if (bLpFired){ bLpFired=false; return; } // this tap was the tail of a long-press
+    bConfirm=null;
+    bOpen = (bOpen===ds.bopen? null : ds.bopen); renderBills(); return;
+  }
+
+  if (ds.bpay!==undefined){
+    const amt = parseFloat(document.getElementById('bPayAmt').value)||0;
+    const date = document.getElementById('bPayDate').value || bTodayKey();
+    const note = (document.getElementById('bPayNote').value||'').trim();
+    const partialEl = document.getElementById('bPayPartial');
+    const partial = !!(partialEl && partialEl.checked);
+    if (amt>0){
+      const prev = bstate.payments[ds.bpay];
+      const total = (prev && prev.partial ? (prev.amt||0) : 0) + amt; // partials add up
+      const mergedNote = [prev && prev.note, note].filter(Boolean).join(' \u00B7 ');
+      bstate.payments[ds.bpay] = { amt: total, date, note: mergedNote, partial };
+      bsave(); bOpen=null; renderBills();
+    }
+    return;
+  }
+  if (ds.bskip!==undefined){
+    bstate.payments[ds.bskip] = { amt:0, date:bTodayKey(), note:'skipped this month', skip:true };
+    bsave(); bOpen=null; renderBills(); return;
+  }
+  if (ds.bunpay!==undefined){ delete bstate.payments[ds.bunpay]; bsave(); renderBills(); return; }
+  if (ds.bamt!==undefined){
+    const amt = parseFloat(document.getElementById('bPayAmt').value)||0;
+    if (amt>0){ bstate.overrides[ds.bamt] = amt; bsave(); bOpen=null; renderBills(); }
+    return;
+  }
+
+  if (ds.bpal!==undefined){ bstate.settings.palette = ds.bpal; bsave(); bApplyPalette(); renderBills(); return; }
+  if (ds.bnew!==undefined){ bEdit='new'; bDraft=bBlankDraft(); bConfirmDel=false; renderBills(); return; }
+  if (ds.bedit!==undefined){
+    const t0 = bstate.templates[ds.bedit];
+    if (t0){
+      bEdit = ds.bedit; bConfirmDel=false;
+      bDraft = { ...bBlankDraft(), ...t0, catTouched:true, amt:(t0.amt??'')+'', stmtDay:(t0.stmtDay??'')+'', loanTotal:(t0.loanTotal??'')+'', loanPaid:(t0.loanPaid??'')+'', creditLimit:(t0.creditLimit||'')+'', balance:(t0.balance||'')+'', apr:(t0.apr||'')+'' };
+      renderBills();
+      const box=document.getElementById('bEditorBox'); if(box) box.scrollIntoView({behavior:'smooth', block:'start'});
+    }
+    return;
+  }
+  if (ds.bcat!==undefined){ bReadDraftInputs(); bDraft.cat = ds.bcat; bDraft.catTouched = true; renderBills(); return; }
+  if (ds.bicon!==undefined){ bReadDraftInputs(); bDraft.icon = ds.bicon; renderBills(); return; }
+  if (ds.bstart!==undefined){ bReadDraftInputs(); bDraft.startNext = ds.bstart==='1'; bDraft.startTouched = true; renderBills(); return; }
+  if (ds.bfreq!==undefined){ bReadDraftInputs(); bDraft.freq = ds.bfreq; renderBills(); return; }
+  if (ds.bcanceltmpl!==undefined){ bEdit=null; bDraft=null; bConfirmDel=false; renderBills(); return; }
+  if (ds.bdel!==undefined){ bConfirmDel=true; renderBills(); return; }
+  if (ds.bkeeptmpl!==undefined){ bConfirmDel=false; renderBills(); return; }
+  if (ds.bconfdel!==undefined){
+    if (bEdit && bEdit!=='new' && bstate.templates[bEdit]){
+      bstate.templates[bEdit].archived = true; // soft delete — payment history stays
+      bsave();
+    }
+    bEdit=null; bDraft=null; bConfirmDel=false; renderBills(); return;
+  }
+  if (ds.bsavetmpl!==undefined){
+    bReadDraftInputs();
+    const d = bDraft;
+    if (!d.name.trim() || !(parseFloat(d.amt)>0)) return; // need a name and an amount
+    if (!d.catTouched) d.cat = bCatFor(d.name); // "DCU Loan" files itself under Loan
+    const tmpl = {
+      name: d.name.trim(), cat: d.cat, freq: d.freq,
+      amt: parseFloat(d.amt)||0,
+      dueDay: Math.min(31, Math.max(1, d.dueDay||1)),
+      dueMonth: d.dueMonth||0,
+      anchor: d.anchor,
+      autopay: !!d.autopay, varies: !!d.varies,
+      icon: d.icon||'',
+      stmtDay: parseInt(d.stmtDay)||0,
+      creditLimit: parseFloat(d.creditLimit)||0,
+      balance: parseFloat(d.balance)||0,
+      apr: parseFloat(d.apr)||0,
+      loanTotal: parseInt(d.loanTotal)||0,
+      loanPaid: parseInt(d.loanPaid)||0,
+    };
+    // "Already paid" wants a COUNT; a value bigger than the total is clearly dollars — convert it
+    if (tmpl.loanTotal>0 && tmpl.loanPaid>tmpl.loanTotal && tmpl.amt>0){
+      tmpl.loanPaid = Math.round(parseFloat(d.loanPaid)/tmpl.amt);
+    }
+    if (tmpl.loanTotal>0) tmpl.loanPaid = Math.min(tmpl.loanPaid, tmpl.loanTotal);
+    const prevT = (bEdit!=='new' && bstate.templates[bEdit]) ? bstate.templates[bEdit] : null;
+    tmpl.balanceDate = (tmpl.balance>0 && (!prevT || (prevT.balance||0)!==tmpl.balance)) ? bTodayKey() : (prevT ? prevT.balanceDate : undefined);
+    if (bEdit==='new'){
+      const now = new Date();
+      if (!d.startTouched) d.startNext = (tmpl.dueDay < now.getDate()) && (tmpl.freq==='monthly' || tmpl.freq==='quarterly');
+      const startM = new Date(now.getFullYear(), now.getMonth() + (d.startNext ? 1 : 0), 1);
+      tmpl.startKey = bMonthKey(startM.getFullYear(), startM.getMonth());
+      bstate.templates[bNewId()] = tmpl;
+    } else {
+      const old = bstate.templates[bEdit]||{};
+      bstate.templates[bEdit] = { ...old, ...tmpl };
+    }
+    bsave(); bEdit=null; bDraft=null; renderBills(); return;
+  }
+});
+document.addEventListener('change', (e)=>{
+});
+// Tap any number field and its contents select themselves — type to replace,
+// no cursor-fighting. Applies everywhere: bills editor and payments.
+document.addEventListener('focusin', (e)=>{
+  const el = e.target;
+  if (el && el.tagName==='INPUT' && el.type==='number'){
+    setTimeout(()=>{ try{ el.select(); }catch(_){ } }, 0);
+  }
+});
+// Keep editor state while typing (so tapping a seg button doesn't wipe inputs)
+document.addEventListener('input', (e)=>{
+  if (bDraft && e.target.id && e.target.id.startsWith('bf')) bReadDraftInputs();
+  if (bDraft && e.target.id === 'bfName'){
+    if (!bDraft.catTouched){
+      const inferred = bCatFor(bDraft.name);
+      if (inferred !== bDraft.cat){
+        // category transition (e.g. "Apple Card" -> card): rebuild the editor so
+        // type-specific fields (limit, balance, APR...) actually appear — then
+        // hand the keyboard right back where it was
+        bDraft.cat = inferred;
+        const box = document.getElementById('bEditorBox');
+        if (box){
+          const caret = e.target.selectionStart;
+          box.innerHTML = bEditorHtml();
+          const nm = document.getElementById('bfName');
+          if (nm){ nm.focus(); try{ nm.setSelectionRange(caret, caret); }catch(_){ } }
+        }
+        return;
+      }
+    }
+    // no category change: cheap surgical update of the icon hint only
+    const ih = document.getElementById('bfIconAuto');
+    if (ih) ih.textContent = bIconFor({name:bDraft.name, cat:bDraft.cat});
+  }
+});
+
+// ---- Bills gestures: same body language as the Pay tab ----
+// Swipe left/right = previous/next month. Long-press (0.5s) a bill = quick menu.
+(() => {
+  const zone = document.getElementById('screen-bills');
+  if (!zone || !zone.addEventListener) return;
+  let x0=0, y0=0, tracking=false, lpTimer=null;
+  const cancelLP = () => { if (lpTimer){ clearTimeout(lpTimer); lpTimer=null; } };
+
+  zone.addEventListener('touchstart', (e)=>{
+    if (e.target.closest('input') || e.target.closest('select')){ tracking=false; return; }
+    const t = e.touches[0];
+    x0=t.clientX; y0=t.clientY; tracking=true;
+    const head = e.target.closest('.dayhead');
+    if (head && head.dataset.bopen!==undefined && !(bConfirm && bConfirm.iid===head.dataset.bopen)){
+      const iid = head.dataset.bopen;
+      lpTimer = setTimeout(()=>{
+        lpTimer=null; bLpFired=true;
+        bConfirm = { iid, mode:'menu' }; bOpen=null;
+        renderBills();
+      }, 500);
+    }
+  }, {passive:true});
+
+  zone.addEventListener('touchmove', (e)=>{
+    if (!lpTimer) return;
+    const t = e.touches[0];
+    if (Math.abs(t.clientX-x0) > 10 || Math.abs(t.clientY-y0) > 10) cancelLP();
+  }, {passive:true});
+
+  zone.addEventListener('touchcancel', cancelLP, {passive:true});
+
+  zone.addEventListener('touchend', (e)=>{
+    cancelLP();
+    if (!tracking) return;
+    tracking=false;
+    const t = e.changedTouches[0];
+    const dx = t.clientX - x0, dy = t.clientY - y0;
+    if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy)*1.5){
+      const dir = dx < 0 ? 1 : -1; // swipe left = forward
+      bMonth.setMonth(bMonth.getMonth() + dir);
+      bOpen=null; bConfirm=null; bShowPaid=true; bShowSubs=false;
+      renderBills();
+      zone.classList.remove('anim-next','anim-prev');
+      void zone.offsetWidth;
+      zone.classList.add(dir > 0 ? 'anim-next' : 'anim-prev');
+    }
+  }, {passive:true});
+})();
+
+
+function bUpdateStrip(){} // pay-tab relic, no-op here
+// ============ UTILITIES ============
+function toKey(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+function fromKey(k){ const [y,m,dd]=k.split('-').map(Number); return new Date(y,m-1,dd); }
+function money(n){ return n.toLocaleString('en-US',{minimumFractionDigits:2, maximumFractionDigits:2}); }
+function escapeHtml(s){ return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function escapeAttr(s){ return escapeHtml(s).replace(/"/g,'&quot;'); }
+
+// ============ BACKUP (this app only) ============
+function doExport(){
+  const bundle = { app:'billsonly', v:1, bills: bstate };
+  bstate.ui.lastExport = toKey(new Date()); bsave();
+  const blob = new Blob([JSON.stringify(bundle, null, 1)], {type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'bills-backup-'+toKey(new Date())+'.json';
+  document.body.appendChild(a); a.click(); a.remove();
+}
+document.addEventListener('change', (e)=>{
+  if (e.target.id !== 'bImportFile') return;
+  const f = e.target.files && e.target.files[0];
+  if (!f) return;
+  const r = new FileReader();
+  r.onload = () => {
+    try{
+      const d = JSON.parse(r.result);
+      const incoming = d.app==='billsonly' ? d.bills : (d.app==='paybills' ? d.bills : null);
+      if (!incoming || !incoming.templates) throw new Error('not a bills backup');
+      bstate = incoming; bsave(); bApplyPalette(); renderBills();
+      alert('Backup restored \u2713');
+    }catch(err){ alert('Could not read that file \u2014 is it a bills backup?'); }
+  };
+  r.readAsText(f);
+  e.target.value = '';
+});
+document.addEventListener('click', (e)=>{
+  const t = e.target.closest('button'); if (!t) return;
+  if (t.id==='bExportBtn'){ doExport(); }
+  if (t.id==='bImportBtn'){ const f=document.getElementById('bImportFile'); if (f) f.click(); }
+});
+
+// ============ BOOT ============
+bApplyPalette();
+renderBills();
+
+</script>
+</body>
+</html>
