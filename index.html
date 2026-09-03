@@ -2463,6 +2463,16 @@ function bRenderParkHistory(){
 let bQPayAsk = null;     // instance mid quick-pay: asking how much was paid
 let bCardOpen = null;    // card expanded in the Cards dashboard
 let bLoanOpen = null;    // loan expanded in the Loans dashboard
+// Parking presets that maintain themselves: $0 and the scooter lot up front,
+// then whatever rates history says he actually uses. Old lots fade out on their own.
+function bParkChips(){
+  const counts = {};
+  for (const v of Object.values(bstate.parking)) if (v>0) counts[v] = (counts[v]||0)+1;
+  const hist = Object.entries(counts).sort((a,b)=>b[1]-a[1]).map(([r])=>+r);
+  const chips = [0, 6.75];
+  for (const r of hist){ if (!chips.includes(r)) chips.push(r); if (chips.length>=7) break; }
+  return chips;
+}
 function bRenderPayPark(){
   const el = document.getElementById('bPayPark');
   if (!el) return;
@@ -2477,7 +2487,7 @@ function bRenderPayPark(){
     + '<span class="eyebrow">\uD83C\uDD7F\uFE0F Parking today</span>'
     + '<span class="b-togval">'+(v!==undefined ? '<span class="good">\u2713 $'+money(v)+'</span> '+(open?'\u25BE':'\u25B8') : (open?'\u25BE':'log \u25B8'))+'</span></button>';
   if (open){
-    const chips = [0, 19, 21, 24, 25, 27, 28];
+    const chips = bParkChips();
     html += '<div class="chiprow" style="margin-top:10px">'
       + chips.map(c=>'<button class="chip" style="font-size:14px; padding:10px 0'+(v===c?'; background:var(--orange); color:var(--orange-text); border-color:var(--orange)':'')+'" data-bppark="'+c+'">'+(c===0?'$0':c)+'</button>').join('')
       + '</div>'
@@ -2485,7 +2495,8 @@ function bRenderPayPark(){
       + '<span><input class="compinput" id="bPayParkOther" type="number" inputmode="decimal" step="0.25" style="width:90px" placeholder="0.00">'
       + ' <button class="smallbtn" style="flex:none; padding:9px 14px" data-bppsave="1">Save</button>'
       + (v!==undefined ? ' <button class="smallbtn danger" style="flex:none; padding:9px 14px" data-bppdel="1">Clear</button>' : '')
-      + '</span></div>';
+      + '</span></div>'
+      + '<div class="compbtns" style="margin-top:8px"><button class="smallbtn" data-bppweek="1">\uD83D\uDCC5 Log another day (yesterday\u2026)</button></div>';
   }
   el.innerHTML = html;
 }
@@ -2518,7 +2529,7 @@ function bRenderPark(){
   const sat = new Date(mon); sat.setDate(sat.getDate()+5);
   const isThisWeek = toKey(mon) === toKey(bMonday(new Date()));
   const days = bParkWeekDays();
-  const chips = [0, 19, 21, 24, 25, 27, 28];
+  const chips = bParkChips();
   let html = '<button class="b-paneltog" data-bparkclose="1">'
     + '<span class="eyebrow">\uD83C\uDD7F\uFE0F Parking</span>'
     + '<span class="b-togval">'+BMONTHS[m]+': $'+money(pm.sum)+' ('+pm.days+'d) \u25BE</span></button>'
@@ -3010,6 +3021,18 @@ document.addEventListener('click', (e)=>{
   if (ds.bparkstart!==undefined){
     bstate.settings.dailyCost = bstate.settings.dailyCost || 21; // wakes the panel; real entries take over from here
     bsave(); renderBills(); return;
+  }
+  if (ds.bppweek!==undefined){
+    const yd = new Date(); yd.setDate(yd.getDate()-1);
+    const ydK = toKey(yd);
+    bParkExpanded = true; bParkWeekStart = null;
+    bParkSel = bstate.parking[ydK]===undefined ? ydK
+             : (bstate.parking[bTodayKey()]===undefined ? bTodayKey() : null);
+    const billsTab = document.querySelector('.tab[data-screen="bills"]');
+    if (billsTab) billsTab.click();
+    const pp = document.getElementById('bParkPanel');
+    if (pp) pp.scrollIntoView({behavior:'smooth', block:'start'});
+    return;
   }
   if (ds.bpptog!==undefined){
     const k = bTodayKey(); const v = bstate.parking[k]; const dow = new Date().getDay();
