@@ -2400,6 +2400,49 @@ function bParkTaxHtml(yr){
     + 'Prepared for tax-filing reference.</div>'
     + '</body></html>';
 }
+// Every week since the first entry, day by day — the gap-finder.
+// Unlogged past weekdays glow as gaps; tap a week to jump in and fix it.
+function bParkDayLogHtml(firstKey){
+  const todayD = new Date(); todayD.setHours(0,0,0,0);
+  const curMon = bMonday(new Date());
+  const weeks = [];
+  for (let wm = bMonday(fromKey(firstKey)); wm <= curMon; wm.setDate(wm.getDate()+7))
+    weeks.push(new Date(wm));
+  weeks.reverse(); // newest on top
+  const showSun = !!bstate.settings.parkSun;
+  let gaps = 0;
+  const rows = weeks.map(mon=>{
+    const cells = [];
+    for (let i=0;i<7;i++){
+      const dd = new Date(mon); dd.setDate(dd.getDate()+i);
+      const dow = dd.getDay();
+      if (dow===0 && !showSun) continue;
+      const k = toKey(dd);
+      const v = bstate.parking[k];
+      let txt, style;
+      if (dd > todayD){ txt='\u00B7'; style='color:var(--line); '; }
+      else if (v!==undefined){ txt = v===0 ? '0' : (v%1===0? '$'+v : '$'+v.toFixed(2)); style = v===0 ? 'color:var(--dim); ' : 'color:var(--text); font-weight:600; '; }
+      else if (dow>=1 && dow<=5 && dd < todayD){ txt='\u2014'; style='color:var(--red); font-weight:700; '; gaps++; }
+      else { txt='\u00B7'; style='color:var(--line); '; } // Saturday off — neutral, not a gap
+      cells.push('<span style="flex:1; text-align:center; '+style+'">'+txt+'</span>');
+    }
+    const sum = (()=>{ let s=0; for (let i=0;i<7;i++){ const dd=new Date(mon); dd.setDate(dd.getDate()+i); s += bstate.parking[toKey(dd)]||0; } return s; })();
+    return '<button class="b-paneltog" data-bparkgoto="'+toKey(mon)+'" style="padding:7px 0; border-bottom:1px solid var(--line)">'
+      + '<span class="b-togval" style="flex:none; width:52px; text-align:left; color:var(--text)">'+bFmtDue(mon)+'</span>'
+      + '<span style="flex:1; display:flex; font-family:ui-monospace,Menlo,monospace; font-size:11px">'+cells.join('')+'</span>'
+      + '<span class="b-togval" style="flex:none; width:44px; text-align:right">'+(sum>0?'$'+Math.round(sum):'')+'</span>'
+      + '</button>';
+  }).join('');
+  const dowHead = '<div class="b-paneltog" style="padding:2px 0">'
+    + '<span style="flex:none; width:52px"></span>'
+    + '<span style="flex:1; display:flex; font-family:ui-monospace,Menlo,monospace; font-size:10px; color:var(--dim)">'
+    + (showSun?['Su','Mo','Tu','We','Th','Fr','Sa']:['Mo','Tu','We','Th','Fr','Sa']).map(d0=>'<span style="flex:1; text-align:center">'+d0+'</span>').join('')
+    + '</span><span style="flex:none; width:44px"></span></div>';
+  return '<div class="eyebrow" style="margin-top:16px">\uD83D\uDCC6 Day by day'
+    + (gaps>0 ? ' \u00B7 <span class="warn">'+gaps+' gap'+(gaps===1?'':'s')+'</span>' : ' \u00B7 <span class="good">complete \u2713</span>')+'</div>'
+    + dowHead + rows
+    + '<div class="projnote">\u2014 = a weekday with nothing logged. Tap a week to open it and fill the blank ($0 counts \u2014 log free days as $0).</div>';
+}
 function bParkTaxExport(){
   const yr = new Date().getFullYear();
   const blob = new Blob([bParkTaxHtml(yr)], {type:'text/html'});
@@ -2458,6 +2501,7 @@ function bRenderParkHistory(){
     + '</div>'
     + '<div class="projnote">Your pattern: \u2248$'+money(perWeek)+'/wk ('+(Math.round(daysPerWeek*10)/10)+' days \u00D7 $'+money(days?total/days:0)+') since '+bFmtDue(fromKey(firstKey))+'.'
     + (topRate ? ' Most common rate: $'+money(+topRate[0])+' ('+topRate[1]+' day'+(topRate[1]===1?'':'s')+').' : '')+'</div>'
+    + bParkDayLogHtml(firstKey)
     + '<div class="compbtns" style="margin-top:10px"><button class="smallbtn" data-bparktax="1">\uD83D\uDCC4 Export for taxes</button></div>';
 }
 let bQPayAsk = null;     // instance mid quick-pay: asking how much was paid
@@ -2472,6 +2516,17 @@ function bParkChips(){
   const chips = [0, 6.75];
   for (const r of hist){ if (!chips.includes(r)) chips.push(r); if (chips.length>=7) break; }
   return chips;
+}
+// The most recent unlogged day (back from yesterday through this week's Monday,
+// Sundays only if enabled). This is what the backfill button offers and opens.
+function bParkBackfillTarget(){
+  const mon = bMonday(new Date());
+  const d = new Date(); d.setHours(0,0,0,0); d.setDate(d.getDate()-1); // start at yesterday
+  for (; d >= mon; d.setDate(d.getDate()-1)){
+    if (d.getDay()===0 && !bstate.settings.parkSun) continue;
+    if (bstate.parking[toKey(d)] === undefined) return new Date(d);
+  }
+  return null;
 }
 function bRenderPayPark(){
   const el = document.getElementById('bPayPark');
@@ -2496,7 +2551,13 @@ function bRenderPayPark(){
       + ' <button class="smallbtn" style="flex:none; padding:9px 14px" data-bppsave="1">Save</button>'
       + (v!==undefined ? ' <button class="smallbtn danger" style="flex:none; padding:9px 14px" data-bppdel="1">Clear</button>' : '')
       + '</span></div>'
-      + '<div class="compbtns" style="margin-top:8px"><button class="smallbtn" data-bppweek="1">\uD83D\uDCC5 Log another day (yesterday\u2026)</button></div>';
+      + (function(){
+          const bt = bParkBackfillTarget();
+          const label = bt
+            ? '\uD83D\uDCC5 Missing: '+BDOW[bt.getDay()]+' '+bFmtDue(bt)+' \u2014 log it'
+            : '\uD83D\uDCC5 Log other days';
+          return '<div class="compbtns" style="margin-top:8px"><button class="smallbtn" data-bppweek="1">'+label+'</button></div>';
+        })();
   }
   el.innerHTML = html;
 }
@@ -3023,10 +3084,9 @@ document.addEventListener('click', (e)=>{
     bsave(); renderBills(); return;
   }
   if (ds.bppweek!==undefined){
-    const yd = new Date(); yd.setDate(yd.getDate()-1);
-    const ydK = toKey(yd);
+    const bt = bParkBackfillTarget();
     bParkExpanded = true; bParkWeekStart = null;
-    bParkSel = bstate.parking[ydK]===undefined ? ydK
+    bParkSel = bt ? toKey(bt)
              : (bstate.parking[bTodayKey()]===undefined ? bTodayKey() : null);
     const billsTab = document.querySelector('.tab[data-screen="bills"]');
     if (billsTab) billsTab.click();
@@ -3156,6 +3216,24 @@ document.addEventListener('click', (e)=>{
   if (ds.bpal!==undefined){ bstate.settings.palette = ds.bpal; bsave(); bApplyPalette(); renderBills(); return; }
   if (ds.blag!==undefined){ bstate.settings.payLag = +ds.blag; bsave(); renderBills(); return; }
   if (ds.bparksun!==undefined){ bstate.settings.parkSun = +ds.bparksun; bsave(); renderBills(); return; }
+  if (ds.bparkgoto!==undefined){
+    const mon = fromKey(ds.bparkgoto);
+    bParkExpanded = true; bParkWeekStart = ds.bparkgoto;
+    const todayD = new Date(); todayD.setHours(0,0,0,0);
+    let sel = null;
+    for (let i=0;i<7;i++){
+      const dd = new Date(mon); dd.setDate(dd.getDate()+i);
+      if (dd > todayD) break;
+      const dow = dd.getDay();
+      if (dow>=1 && dow<=5 && bstate.parking[toKey(dd)]===undefined){ sel = toKey(dd); break; }
+    }
+    bParkSel = sel;
+    const billsTab = document.querySelector('.tab[data-screen="bills"]');
+    if (billsTab) billsTab.click();
+    const pp = document.getElementById('bParkPanel');
+    if (pp) pp.scrollIntoView({behavior:'smooth', block:'start'});
+    return;
+  }
   if (ds.btogparkhist!==undefined){ bstate.ui.parkHistOpen = !bstate.ui.parkHistOpen; bsave(); bRenderParkHistory(); return; }
   if (ds.bparktax!==undefined){ bParkTaxExport(); return; }
   if (ds.bnew!==undefined){ bEdit='new'; bDraft=bBlankDraft(); bConfirmDel=false; renderBills(); return; }
