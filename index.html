@@ -167,13 +167,13 @@
   .b-grouplabel.over{color:var(--red);}
   .day.b-over{border-color:var(--red);}
   .day.b-t1{border-left:4px solid var(--orange);}
-  .day.b-duetoday{border-color:var(--orange); box-shadow:0 0 0 1px var(--orange), 0 0 16px rgba(230,140,60,.30); animation:bDueGlow 2.2s ease-in-out infinite;}
+  .day.b-duetoday{ border-color:transparent; animation:bDueGlow 1.5s ease-in-out infinite; }
   @keyframes bDueGlow{
-    0%,100%{ box-shadow:0 0 0 1px var(--orange), 0 0 8px rgba(230,140,60,.18); }
-    50%{ box-shadow:0 0 0 1.5px var(--orange), 0 0 20px rgba(230,140,60,.42); }
+    0%,100%{ box-shadow:0 0 0 2px color-mix(in srgb, var(--orange) 10%, transparent), 0 0 2px color-mix(in srgb, var(--orange) 6%, transparent); }
+    50%{ box-shadow:0 0 0 3px var(--orange), 0 0 26px color-mix(in srgb, var(--orange) 60%, transparent); }
   }
   .b-duetodaytag{ color:var(--orange); font-weight:800; letter-spacing:.04em; }
-  @media (prefers-reduced-motion: reduce){ .day.b-duetoday{ animation:none; } }
+  @media (prefers-reduced-motion: reduce){ .day.b-duetoday{ animation:none; box-shadow:0 0 0 2px var(--orange); } }
   .day.b-t2{border-left:4px solid var(--line2, var(--dim));}
   .b-grouplabel.hot{color:var(--orange);}
   .b-glbtn{width:100%; background:none; padding:0; display:flex; justify-content:space-between; align-items:center; text-align:left;}
