@@ -588,6 +588,24 @@ function calcPay(hoursArr, s){
 function ratesForW(week){ return (week && week.rates) ? { ...DEFAULTS, ...week.rates } : state.settings; }
 
 // ============ DATES (week ends Saturday) ============
+// US holidays the trades commonly observe — computed by rule, valid for any year.
+// Info only: never touches pay math. Worked holidays behave like any workday.
+function usHoliday(d){
+  const y = d.getFullYear(), m = d.getMonth(), day = d.getDate(), dow = d.getDay();
+  const nth = Math.ceil(day/7); // which occurrence of this weekday in the month
+  const lastOfMonth = day + 7 > new Date(y, m+1, 0).getDate();
+  if (m===0 && day===1) return "New Year's";
+  if (m===0 && dow===1 && nth===3) return 'MLK Day';
+  if (m===1 && dow===1 && nth===3) return "Presidents' Day";
+  if (m===4 && dow===1 && lastOfMonth) return 'Memorial Day';
+  if (m===5 && day===19) return 'Juneteenth';
+  if (m===6 && day===4) return 'July 4th';
+  if (m===8 && dow===1 && nth===1) return 'Labor Day';
+  if (m===10 && day===11) return 'Veterans Day';
+  if (m===10 && dow===4 && nth===4) return 'Thanksgiving';
+  if (m===11 && day===25) return 'Christmas';
+  return null;
+}
 function weekEndSat(d){
   const x = new Date(d); x.setDate(x.getDate() + (6 - x.getDay())); x.setHours(0,0,0,0); return x;
 }
@@ -768,6 +786,7 @@ function renderWeek(){
     card.innerHTML =
       '<button class="dayhead" data-day="'+i+'">'
       + '<span><span class="dayname'+(isToday?' today':'')+'">'+DAYS[d.getDay()]+' <span class="daydate">'+fmtShort(d)+'</span></span>'
+      + (usHoliday(d) ? '<span class="dimtext" style="font-size:11px"> \uD83C\uDFD6 '+usHoliday(d)+'</span>' : '')
       + (isToday?'<span class="todaytag">TODAY</span>':'') + '</span>'
       + '<span style="text-align:right"><span class="dayhrs'+(h>0?'':' empty')+'">'+(h>0? h+' hrs':'\u2014')+'</span>'
       + (dayPremium(i,h,s) ? '<span class="dayot">'+dayPremium(i,h,s)+'</span>' : '')
@@ -2461,7 +2480,10 @@ function bParkDayLogHtml(firstKey){
       let txt, style;
       if (dd > todayD){ txt='\u00B7'; style='color:var(--line); '; }
       else if (v!==undefined){ txt = v===0 ? '0' : (v%1===0? '$'+v : '$'+v.toFixed(2)); style = v===0 ? 'color:var(--dim); ' : 'color:var(--text); font-weight:600; '; }
-      else if (dow>=1 && dow<=5 && dd < todayD){ txt='\u2014'; style='color:var(--red); font-weight:700; '; gaps++; }
+      else if (dow>=1 && dow<=5 && dd < todayD){
+        if (usHoliday(dd)){ txt='\uD83C\uDFD6'; style='color:var(--dim); font-size:10px; '; }
+        else { txt='\u2014'; style='color:var(--red); font-weight:700; '; gaps++; }
+      }
       else { txt='\u00B7'; style='color:var(--line); '; } // Saturday off — neutral, not a gap
       cells.push('<span style="flex:1; text-align:center; '+style+'">'+txt+'</span>');
     }
@@ -2480,7 +2502,7 @@ function bParkDayLogHtml(firstKey){
   return '<div class="eyebrow" style="margin-top:16px">\uD83D\uDCC6 Day by day'
     + (gaps>0 ? ' \u00B7 <span class="warn">'+gaps+' gap'+(gaps===1?'':'s')+'</span>' : ' \u00B7 <span class="good">complete \u2713</span>')+'</div>'
     + dowHead + rows
-    + '<div class="projnote">\u2014 = a weekday with nothing logged. Tap a week to open it and fill the blank ($0 counts \u2014 log free days as $0).</div>';
+    + '<div class="projnote">\u2014 = a weekday with nothing logged \u00B7 \uD83C\uDFD6 = holiday, no entry needed. Tap a week to open it and fill blanks ($0 counts \u2014 log free days as $0).</div>';
 }
 function bParkTaxExport(){
   const yr = new Date().getFullYear();
@@ -2568,6 +2590,7 @@ function bParkBackfillTarget(now){
     const dow = dd.getDay();
     if (dow===6) continue;                          // Saturdays: neutral, never a gap
     if (dow===0 && !bstate.settings.parkSun) continue;
+    if (usHoliday(dd)) continue; // unworked holiday: nothing to nag about
     if (bstate.parking[toKey(dd)] === undefined) return dd;
   }
   return null;
@@ -3275,7 +3298,7 @@ document.addEventListener('click', (e)=>{
       const dd = new Date(mon); dd.setDate(dd.getDate()+i);
       if (dd > todayD) break;
       const dow = dd.getDay();
-      if (dow>=1 && dow<=5 && bstate.parking[toKey(dd)]===undefined){ sel = toKey(dd); break; }
+      if (dow>=1 && dow<=5 && !usHoliday(dd) && bstate.parking[toKey(dd)]===undefined){ sel = toKey(dd); break; }
     }
     bParkSel = sel;
     const billsTab = document.querySelector('.tab[data-screen="bills"]');
@@ -3498,7 +3521,7 @@ if (toKey(weekEndSat(new Date())) === toKey(weekEnd)){
   const td = new Date().getDay();
   const wk0 = state.weeks[toKey(weekEnd)];
   const alreadyLogged = !!(wk0 && wk0.hours && wk0.hours[td] > 0);
-  openDay = ((td===0 && !state.settings.workSundays) || td===6 || alreadyLogged) ? null : td;
+  openDay = ((td===0 && !state.settings.workSundays) || td===6 || alreadyLogged || !!usHoliday(new Date())) ? null : td;
 }
 renderWeek();
 
