@@ -167,6 +167,13 @@
   .b-grouplabel.over{color:var(--red);}
   .day.b-over{border-color:var(--red);}
   .day.b-t1{border-left:4px solid var(--orange);}
+  .day.b-duetoday{border-color:var(--orange); box-shadow:0 0 0 1px var(--orange), 0 0 16px rgba(230,140,60,.30); animation:bDueGlow 2.2s ease-in-out infinite;}
+  @keyframes bDueGlow{
+    0%,100%{ box-shadow:0 0 0 1px var(--orange), 0 0 8px rgba(230,140,60,.18); }
+    50%{ box-shadow:0 0 0 1.5px var(--orange), 0 0 20px rgba(230,140,60,.42); }
+  }
+  .b-duetodaytag{ color:var(--orange); font-weight:800; letter-spacing:.04em; }
+  @media (prefers-reduced-motion: reduce){ .day.b-duetoday{ animation:none; } }
   .day.b-t2{border-left:4px solid var(--line2, var(--dim));}
   .b-grouplabel.hot{color:var(--orange);}
   .b-glbtn{width:100%; background:none; padding:0; display:flex; justify-content:space-between; align-items:center; text-align:left;}
@@ -2644,7 +2651,8 @@ function bRow(i, todayK){
   const amt = settled ? bExpAmt(i) : rem;
   const creep = bCreep(i.tid);
   const card = document.createElement('div');
-  card.className = 'day'+(open?' open':'')+(isOver?' b-over':'')+(!isOver && i._tier===1?' b-t1':'')+(!isOver && i._tier===2?' b-t2':'')+(settled && !conf?' b-paidrow':'')
+  const dueToday = !settled && !isOver && toKey(i.due) === bTodayKey();
+  card.className = 'day'+(open?' open':'')+(isOver?' b-over':'')+(dueToday?' b-duetoday':'')+(!isOver && !dueToday && i._tier===1?' b-t1':'')+(!isOver && !dueToday && i._tier===2?' b-t2':'')+(settled && !conf?' b-paidrow':'')
     +(conf && conf.mode==='del'?' confirm':'')+(conf && conf.mode==='menu'?' b-menu':'');
   let sub = bIconFor(i.t)+' '+bCatLabel(i.t) + (i.t.autopay ? ' \u00B7 autopay' : '');
   if (i.t.cat==='loan'){
@@ -2663,7 +2671,9 @@ function bRow(i, todayK){
     + '<span style="text-align:right"><span class="b-amt'+(settled?' paid':'')+'">'
     + (settled?'\u2713 ':'')+(i.pay && i.pay.skip ? 'skipped' : '$'+money(amt))+'</span>'
     + '<span class="b-duetag'+(isOver?' over':'')+(!isOver && i._tier===1 && !settled?' t1':'')+'">'
-    + (settled ? (i.pay.skip ? 'this month' : 'paid '+bFmtPaidDate(i.pay)) : (isOver?'was due ':'due ')+bFmtDue(i.due))+'</span></span>'
+    + (settled ? (i.pay.skip ? 'this month' : 'paid '+bFmtPaidDate(i.pay))
+       : (dueToday ? '<span class="b-duetodaytag">\u23F0 DUE TODAY</span>'
+       : (isOver?'was due ':'due ')+bFmtDue(i.due)))+'</span></span>'
     + '</button>'
     + (conf && conf.mode==='menu' ?
       (bQPayAsk===i.iid
