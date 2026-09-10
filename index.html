@@ -604,6 +604,18 @@ function usHoliday(d){
   if (m===10 && day===11) return 'Veterans Day';
   if (m===10 && dow===4 && nth===4) return 'Thanksgiving';
   if (m===11 && day===25) return 'Christmas';
+  // observed shifts: a fixed-date holiday on Sat is taken Friday, on Sun taken Monday
+  const fixedOn = dd => {
+    const mm=dd.getMonth(), da=dd.getDate();
+    if (mm===0 && da===1) return "New Year's";
+    if (mm===5 && da===19) return 'Juneteenth';
+    if (mm===6 && da===4) return 'July 4th';
+    if (mm===10 && da===11) return 'Veterans Day';
+    if (mm===11 && da===25) return 'Christmas';
+    return null;
+  };
+  if (dow===5){ const nx=new Date(y,m,day+1); const h=fixedOn(nx); if (h && nx.getDay()===6) return h+' (obs.)'; }
+  if (dow===1){ const pv=new Date(y,m,day-1); const h=fixedOn(pv); if (h && pv.getDay()===0) return h+' (obs.)'; }
   return null;
 }
 function weekEndSat(d){
@@ -836,9 +848,11 @@ function renderHistory(){
     const useNet = (v.actual && v.actual.net>0) ? v.actual.net : p.net;
     const useGross = (v.actual && v.actual.gross>0) ? v.actual.gross : p.gross;
     const hasNotes = (v.notes||[]).some(x=>x) || !!v.weekNote;
+    const hasHol = (()=>{ const we=fromKey(k); for (let i=0;i<7;i++){ const dd=new Date(we); dd.setDate(dd.getDate()-(6-i));
+      if ((v.hours||[])[i]>0) continue; if (dd.getDay()>=1 && dd.getDay()<=5 && usHoliday(dd)) return true; } return false; })();
     const verified = !!(v.actual && v.actual.net>0);
     if (fromKey(k).getFullYear()===year){ g+=useGross; n+=useNet; h+=th; t+=(useGross-useNet); count++; }
-    rows.push({k, d:fromKey(k), th, p, useNet, hasNotes, verified});
+    rows.push({k, d:fromKey(k), th, p, useNet, hasNotes, hasHol, verified});
   }
   rows.sort((a,b)=>b.d-a.d);
 
@@ -920,7 +934,7 @@ function renderHistory(){
     : rows.map(r =>
       '<button class="histrow" data-goto="'+r.k+'">'
       + '<span><div class="histweek">Week ending '+fmtShort(r.d)+'</div>'
-      + '<div class="histsub">'+r.th+' hrs'+(r.p.ot>0?' \u00B7 '+r.p.ot+' OT':'')+(r.p.dt>0?' \u00B7 '+r.p.dt+' 2x':'')+(r.hasNotes?' \u00B7 \uD83D\uDCDD':'')+'</div></span>'
+      + '<div class="histsub">'+r.th+' hrs'+(r.p.ot>0?' \u00B7 '+r.p.ot+' OT':'')+(r.p.dt>0?' \u00B7 '+r.p.dt+' 2x':'')+(r.hasHol?' \u00B7 \uD83C\uDFD6':'')+(r.hasNotes?' \u00B7 \uD83D\uDCDD':'')+'</div></span>'
       + '<span style="text-align:right"><div class="histnet">$'+money(r.useNet)+'</div>'
       + (r.verified?'<div class="verified" style="font-size:11.5px; margin-top:2px">\u2713 verified</div>':'')+'</span></button>'
     ).join('');
@@ -1131,6 +1145,16 @@ function wrapText(ctx, text, maxW){
   if (line) lines.push(line);
   return lines.slice(0,2); // cap at 2 lines per note
 }
+// What a timesheet row says — holiday-aware, so an empty holiday reads as
+// 'Holiday', not as an unexplained blank the boss has to ask about.
+function tsDayParts(d, h){
+  const hol = usHoliday(d);
+  return {
+    label: DAYS[d.getDay()]+' '+fmtShort(d)+(hol ? '  \u00B7  '+hol : ''),
+    hrsTxt: h>0 ? h+' hrs' : (hol ? 'Holiday' : '\u2014'),
+    isHol: !!hol
+  };
+}
 function shareTimesheet(){
   const week = getWeek();
   const hours = getHours();
@@ -1194,12 +1218,13 @@ function shareTimesheet(){
     const h = hours[i];
     const rowTop = y;
     y += 60;
+    const parts = tsDayParts(d, h);
     ctx.fillStyle = '#68717F';
     ctx.font = '600 28px ui-monospace, Menlo, monospace';
-    ctx.fillText(DAYS[d.getDay()]+' '+fmtShort(d), PAD, y);
-    ctx.fillStyle = h>0 ? '#1A1F26' : '#B7BEC9';
-    ctx.font = '800 38px ui-monospace, Menlo, monospace';
-    const hrsTxt = h>0 ? h+' hrs' : '\u2014';
+    ctx.fillText(parts.label, PAD, y);
+    ctx.fillStyle = h>0 ? '#1A1F26' : (parts.isHol ? '#68717F' : '#B7BEC9');
+    ctx.font = h>0 ? '800 38px ui-monospace, Menlo, monospace' : (parts.isHol ? '700 32px -apple-system, Helvetica, Arial' : '800 38px ui-monospace, Menlo, monospace');
+    const hrsTxt = parts.hrsTxt;
     const wHrs = ctx.measureText(hrsTxt).width;
     ctx.fillText(hrsTxt, W-PAD-wHrs, y);
     const prem = dayPremium(i, h, s);
@@ -2075,7 +2100,7 @@ function bWorkdaysUntil(pd){
   let n = 0;
   for (let x = new Date(d); x <= pd; x.setDate(x.getDate()+1)){
     const dow = x.getDay();
-    if (dow >= 1 && dow <= 5) n++;
+    if (dow >= 1 && dow <= 5 && !usHoliday(x)) n++; // holidays: no commute, no parking
   }
   return n;
 }
@@ -2131,7 +2156,7 @@ function bPaydaysInMonth(y,m){
 }
 function bWeekdaysInMonth(y,m){
   let n=0;
-  for (let d=1; d<=bDaysIn(y,m); d++){ const dw=new Date(y,m,d).getDay(); if (dw>=1&&dw<=5) n++; }
+  for (let d=1; d<=bDaysIn(y,m); d++){ const dd=new Date(y,m,d); const dw=dd.getDay(); if (dw>=1&&dw<=5&&!usHoliday(dd)) n++; }
   return n;
 }
 function bEarnedInMonth(y,m){ // checks from weeks ending in that month, real hours
