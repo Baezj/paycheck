@@ -270,6 +270,34 @@
   .b-prog{ height:8px; border-radius:99px; background:var(--up); overflow:hidden; }
   .b-progfill{ background:var(--green); border-radius:99px; height:100%; }
   .weeklabel .weekdate{ font-size:24px; font-weight:800; letter-spacing:-.01em; }
+
+  /* ---- ported: due-today pulse, paid flash, tactile pack ---- */
+  *{ -webkit-tap-highlight-color: transparent; }
+  button, .day, .chip{ -webkit-user-select:none; user-select:none; }
+  .smallbtn, .chip, .confirmbtn, .segbtn, .b-paneltog{ transition: transform .08s ease; }
+  .smallbtn:active, .chip:active, .confirmbtn:active, .segbtn:active, .b-paneltog:active{ transform: scale(.965); }
+  .day{ transition: transform .08s ease; }
+  .day:active{ transform: scale(.988); }
+  .b-fab:active{ transform: scale(.9); }
+  .b-amt, .b-sts, .gval, .b-togval{ font-variant-numeric: tabular-nums; }
+  .confirmbody, .b-qpayask{ animation: bRise .16s ease; }
+  @keyframes bRise{ from{ opacity:0; transform: translateY(3px); } to{ opacity:1; transform:none; } }
+  .day.b-duetoday{ border-color:transparent; animation:bDueGlow 1.5s ease-in-out infinite; }
+  @keyframes bDueGlow{
+    0%,100%{ box-shadow:0 0 0 2px color-mix(in srgb, var(--orange) 10%, transparent); }
+    50%{ box-shadow:0 0 0 3px var(--orange), 0 0 24px color-mix(in srgb, var(--orange) 55%, transparent); }
+  }
+  .b-duetodaytag{ color:var(--orange); font-weight:800; letter-spacing:.04em; }
+  .day.b-justpaid{ animation: bPaidFlash .7s ease; }
+  @keyframes bPaidFlash{
+    0%{ box-shadow:0 0 0 2.5px var(--green), 0 0 20px color-mix(in srgb, var(--green) 50%, transparent); }
+    100%{ box-shadow:0 0 0 0 transparent; }
+  }
+  @media (prefers-reduced-motion: reduce){
+    .smallbtn, .chip, .confirmbtn, .segbtn, .day, .b-fab, .b-paneltog{ transition:none; }
+    .confirmbody, .b-qpayask, .day.b-justpaid{ animation:none; }
+    .day.b-duetoday{ animation:none; box-shadow:0 0 0 2px var(--orange); }
+  }
 </style>
 </head>
 <body>
@@ -929,7 +957,7 @@ function bRenderLoans(){
         + (po ? '<div class="bd-line"><span>Progress</span><span>'+(po.counted ? po.made+' of '+po.total+' \u00B7 '+po.left+' left' : '\u2248'+po.left+' payments left')+'</span></div>' : '')
         + (po && po.left>0 ? '<div class="bd-line"><span>Paid off</span><span>'+bFmtDue(po.date)+' '+po.date.getFullYear()+' \u2014 frees $'+money(bMonthlyEq(t))+'/mo</span></div>' : '')
         + (t.apr>0 && t.balance>0 ? '<div class="bd-line"><span>Interest</span><span>\u2248 $'+money(t.balance*t.apr/100/12)+'/mo at '+t.apr+'%</span></div>' : '')
-        + (bPaidThisMonth(tid) ? '<div class="bd-line"><span class="good">\u2713 '+BMONTHS[new Date().getMonth()]+' paid</span><span class="good">$'+money(bPaidThisMonth(tid).pay.amt||0)+'</span></div>' : '')
+        + (bPaidThisMonth(tid) ? '<div class="bd-line"><span class="good">\u2713 '+BMONTHS[new Date().getMonth()]+' paid \u00B7 $'+money(bPaidThisMonth(tid).pay.amt||0)+'</span><span><button class="smallbtn" style="padding:5px 12px; margin:0" data-bqundo="'+bPaidThisMonth(tid).iid+'">Undo</button></span></div>' : '')
         + (nd ? '<div class="bd-line"><span>Next payment</span><span>$'+money(bExpAmt(nd))+' due '+bFmtDue(nd.due)+'</span></div>' : '')
         + hist.map(r=>'<div class="bd-line"><span class="dimtext">paid '+bFmtDue(fromKey(r.date||r.dueKey))+'</span><span class="dimtext">$'+money(r.amt||0)+'</span></div>').join('')
         + '</div>'
@@ -1012,7 +1040,7 @@ function bRenderCards(){
         + (t.creditLimit>0 ? '<div class="bd-line"><span>Limit / available</span><span>$'+money(t.creditLimit)+' \u00B7 $'+money(Math.max(0,t.creditLimit-(t.balance||0)))+' free</span></div>' : '')
         + (t.apr>0 && t.balance>0 ? '<div class="bd-line"><span>Interest</span><span>\u2248 $'+money(t.balance*t.apr/100/12)+'/mo at '+t.apr+'%</span></div>' : '')
         + (t.stmtDay ? '<div class="bd-line"><span>Statement closes</span><span>'+(t.stmtDay>=31?'last day of month':'the '+t.stmtDay+bOrd(t.stmtDay))+'</span></div>' : '')
-        + (bPaidThisMonth(tid) ? '<div class="bd-line"><span class="good">\u2713 '+BMONTHS[new Date().getMonth()]+' paid</span><span class="good">$'+money(bPaidThisMonth(tid).pay.amt||0)+'</span></div>' : '')
+        + (bPaidThisMonth(tid) ? '<div class="bd-line"><span class="good">\u2713 '+BMONTHS[new Date().getMonth()]+' paid \u00B7 $'+money(bPaidThisMonth(tid).pay.amt||0)+'</span><span><button class="smallbtn" style="padding:5px 12px; margin:0" data-bqundo="'+bPaidThisMonth(tid).iid+'">Undo</button></span></div>' : '')
         + (nd ? '<div class="bd-line"><span>Next payment</span><span>$'+money(bExpAmt(nd))+' due '+bFmtDue(nd.due)+'</span></div>' : '')
         + hist.map(r=>'<div class="bd-line"><span class="dimtext">paid '+bFmtDue(fromKey(r.date||r.dueKey))+'</span><span class="dimtext">$'+money(r.amt||0)+'</span></div>').join('')
         + '</div>'
@@ -1032,7 +1060,8 @@ function bRenderCards(){
 }
 
 // ---- Cards dashboard end ----
-let bQPayAsk = null;     // instance mid quick-pay: asking how much was paid
+let bQPayAsk = null;
+let bJustPaid = null;     // instance mid quick-pay: asking how much was paid
 let bCardOpen = null;    // card expanded in the Cards dashboard
 let bLoanOpen = null;    // loan expanded in the Loans dashboard
 
@@ -1048,7 +1077,9 @@ function bRow(i, todayK){
   const amt = settled ? bExpAmt(i) : rem;
   const creep = bCreep(i.tid);
   const card = document.createElement('div');
-  card.className = 'day'+(open?' open':'')+(isOver?' b-over':'')+(!isOver && i._tier===1?' b-t1':'')+(!isOver && i._tier===2?' b-t2':'')+(settled && !conf?' b-paidrow':'')
+  const dueToday = !settled && !isOver && toKey(i.due) === bTodayKey();
+  const justPaid = bJustPaid === i.iid; if (justPaid) bJustPaid = null;
+  card.className = 'day'+(open?' open':'')+(justPaid?' b-justpaid':'')+(isOver?' b-over':'')+(dueToday?' b-duetoday':'')+(!isOver && !dueToday && i._tier===1?' b-t1':'')+(!isOver && !dueToday && i._tier===2?' b-t2':'')+(settled && !conf?' b-paidrow':'')
     +(conf && conf.mode==='del'?' confirm':'')+(conf && conf.mode==='menu'?' b-menu':'');
   let sub = bIconFor(i.t)+' '+bCatLabel(i.t) + (i.t.autopay ? ' \u00B7 autopay' : '');
   if (i.t.cat==='loan'){
@@ -1067,7 +1098,9 @@ function bRow(i, todayK){
     + '<span style="text-align:right"><span class="b-amt'+(settled?' paid':'')+'">'
     + (settled?'\u2713 ':'')+(i.pay && i.pay.skip ? 'skipped' : '$'+money(amt))+'</span>'
     + '<span class="b-duetag'+(isOver?' over':'')+(!isOver && i._tier===1 && !settled?' t1':'')+'">'
-    + (settled ? (i.pay.skip ? 'this month' : 'paid '+bFmtPaidDate(i.pay)) : (isOver?'was due ':'due ')+bFmtDue(i.due))+'</span></span>'
+    + (settled ? (i.pay.skip ? 'this month' : 'paid '+bFmtPaidDate(i.pay))
+       : (dueToday ? '<span class="b-duetodaytag">\u23F0 DUE TODAY</span>'
+       : (isOver?'was due ':'due ')+bFmtDue(i.due)))+'</span></span>'
     + '</button>'
     + (conf && conf.mode==='menu' ?
       (bQPayAsk===i.iid
@@ -1078,9 +1111,10 @@ function bRow(i, todayK){
         : '<div class="confirmbody">'
           + '<span class="confirmtext" style="color:var(--text); min-width:0">'+escapeHtml(i.t.name)+'</span>'
           + '<button class="confirmbtn keep" data-bcancelmenu="1">Cancel</button>'
-          + (bRemaining(i)<=0 && i.pay
-            ? '<button class="confirmbtn keep" data-bqundo="'+i.iid+'">Undo</button>'
-            : '<button class="confirmbtn" style="background:var(--green); color:#14181D" data-bqpay="'+i.iid+'">\u2713 Paid</button>')
+          + (i.pay && !i.pay.skip
+            ? '<button class="confirmbtn keep" data-bqundo="'+i.iid+'">Undo</button>' : '')
+          + (bRemaining(i)>0
+            ? '<button class="confirmbtn" style="background:var(--green); color:#14181D" data-bqpay="'+i.iid+'">\u2713 Paid</button>' : '')
           + '<button class="confirmbtn del" data-bdelask="1">Delete</button>'
           + '</div>') : '')
     + (conf && conf.mode==='del' ?
@@ -1381,6 +1415,7 @@ document.addEventListener('click', (e)=>{
   }
   if (ds.bqcancel!==undefined){ bQPayAsk=null; renderBills(); return; }
   if (ds.bqconfirm!==undefined){
+    bJustPaid = ds.bqconfirm;
     const wrap = t.closest('.b-qpayask');
     const inp = wrap && wrap.querySelector('input');
     const amt = inp ? parseFloat(inp.value) : NaN;
