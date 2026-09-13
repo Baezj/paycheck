@@ -1307,6 +1307,18 @@ function bRenderManage(){
         + '<span class="b-amt" style="color:var(--dim)">\u203A</span></button>';
     }).join('');
   }
+
+  const gone = Object.entries(bstate.templates).filter(([,t])=>t.archived)
+    .sort((a,b)=> a[1].name.localeCompare(b[1].name));
+  if (gone.length){
+    html += '<p class="setsection">Deleted bills \u2014 history kept. Restore any time.</p>';
+    html += gone.map(([id,t])=>
+      '<div class="b-tmplrow" style="width:100%; opacity:.75">'
+      + '<span style="text-align:left"><div class="b-tmplinfo">'+bIconFor(t)+' '+escapeHtml(t.name)+'</div>'
+      + '<div class="b-tmplsub">'+(BFREQS[t.freq]||t.freq)+' \u00B7 $'+money(t.amt||0)+'</div></span>'
+      + '<button class="smallbtn" style="margin:0" data-brestore="'+id+'">Restore</button></div>'
+    ).join('');
+  }
   el.innerHTML = html;
 }
 
@@ -1433,6 +1445,11 @@ document.addEventListener('click', (e)=>{
   if (ds.bqundo!==undefined){ delete bstate.payments[ds.bqundo]; bsave(); bConfirm=null; renderBills(); return; }
   if (ds.bdelask!==undefined){ if (bConfirm) bConfirm = { iid:bConfirm.iid, mode:'del' }; renderBills(); return; }
   if (ds.bkeep2!==undefined){ bConfirm=null; renderBills(); return; }
+  if (ds.brestore!==undefined){
+    const t0 = bstate.templates[ds.brestore];
+    if (t0){ delete t0.archived; bsave(); renderBills(); }
+    return;
+  }
   if (ds.bconfdel2!==undefined){
     const t0 = bstate.templates[ds.bconfdel2];
     if (t0){ t0.archived = true; bsave(); } // soft delete — payment history stays
@@ -1714,6 +1731,10 @@ document.addEventListener('click', (e)=>{
 bApplyPalette();
 renderBills();
 
+
+if ('serviceWorker' in navigator){
+  navigator.serviceWorker.register('./sw.js').catch(()=>{});
+}
 </script>
 </body>
 </html>
