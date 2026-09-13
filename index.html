@@ -2770,9 +2770,10 @@ function bRow(i, todayK){
         : '<div class="confirmbody">'
           + '<span class="confirmtext" style="color:var(--text); min-width:0">'+escapeHtml(i.t.name)+'</span>'
           + '<button class="confirmbtn keep" data-bcancelmenu="1">Cancel</button>'
-          + (bRemaining(i)<=0 && i.pay
-            ? '<button class="confirmbtn keep" data-bqundo="'+i.iid+'">Undo</button>'
-            : '<button class="confirmbtn" style="background:var(--green); color:#14181D" data-bqpay="'+i.iid+'">\u2713 Paid</button>')
+          + (i.pay && !i.pay.skip
+            ? '<button class="confirmbtn keep" data-bqundo="'+i.iid+'">Undo</button>' : '')
+          + (bRemaining(i)>0
+            ? '<button class="confirmbtn" style="background:var(--green); color:#14181D" data-bqpay="'+i.iid+'">\u2713 Paid</button>' : '')
           + '<button class="confirmbtn del" data-bdelask="1">Delete</button>'
           + '</div>') : '')
     + (conf && conf.mode==='del' ?
