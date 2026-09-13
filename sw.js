@@ -2,11 +2,11 @@
 // Network-first with a short timeout, cache fallback.
 // - With signal: you always get the newest version immediately (no "one launch behind").
 // - Bad signal or offline: after 2.5s it falls back to the last good cached copy.
-const CACHE = 'paybills-v2';
+const CACHE = 'paybills-v3'; // v3: also carries the Bills app for offline
 
 self.addEventListener('install', (e) => {
   // Pre-cache the shell so offline works even before the first full visit
-  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(['./', './index.html', './icon.png']).catch(() => {})));
+  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(['./', './index.html', './icon.png', './bills.html', './bills-icon.png']).catch(() => {})));
   self.skipWaiting(); // new versions take over immediately
 });
 
