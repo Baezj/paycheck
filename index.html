@@ -299,6 +299,10 @@
 
     <input class="weeknoteinput" id="weekNoteInput" type="text" maxlength="100"
       placeholder="📌 Note for this whole week (optional) — e.g. schedule change, job site…">
+    <div class="setrow" style="margin-top:10px; padding:12px 16px">
+      <label for="wkMakeup" style="flex:1">⚠ Missing OT from last week (short-reported)</label>
+      <input class="compinput" id="wkMakeup" type="number" inputmode="decimal" step="0.25" min="0" placeholder="0" style="width:74px; text-align:right">
+    </div>
 
     <div class="paycard" id="payCard">
       <div class="payrow">
@@ -532,8 +536,10 @@ function splitHours(arr, s){
   return { reg: straight - weeklyExtra, ot: ot + weeklyExtra, dt };
 }
 // Raw calc (no calibration) — used for storing clean comparisons
-function calcPayRaw(hoursArr, s){
-  const { reg, ot, dt } = splitHours(hoursArr, s);
+function calcPayRaw(hoursArr, s, extraOT){
+  const sp = splitHours(hoursArr, s);
+  const reg = sp.reg, dt = sp.dt;
+  const ot = sp.ot + (extraOT>0 ? extraOT : 0); // claimed makeup hours: worked, short-reported, owed at OT
   const hrs = reg + ot + dt;
   const regPay = reg*s.baseRate, otPay = ot*s.otRate, dtPay = dt*(s.sundayRate || s.baseRate*2);
   const gross = regPay + otPay + dtPay;
@@ -551,7 +557,7 @@ function calibration(){
     if (v.actual.skip) continue; // marked unusual (makeup pay, bonus) — don't learn from it
     const th = (v.hours||[]).reduce((a,b)=>a+b,0);
     if (th<=0) continue;
-    const raw = calcPayRaw(v.hours||[], ratesForW(v));
+    const raw = calcPayRaw(v.hours||[], ratesForW(v), v.makeupOT||0);
     // If a gross was entered, only trust the comparison when it matches our computed gross
     if (v.actual.gross>0 && Math.abs(v.actual.gross - raw.gross) > 0.5) continue;
     // No gross entered + suspiciously large gap = likely an hours mismatch — don't learn from it
@@ -570,8 +576,8 @@ function calibration(){
   return { offset: Math.max(-25, Math.min(25, offset)), count , avgAbsRaw, avgAbsTuned, lastErr, allWhole };
 }
 // Calibrated calc — what we display for estimates
-function calcPay(hoursArr, s){
-  const p = calcPayRaw(hoursArr, s);
+function calcPay(hoursArr, s, extraOT){
+  const p = calcPayRaw(hoursArr, s, extraOT);
   if (p.gross <= 0) return p; // nothing worked = nothing to calibrate
   const c = calibration();
   p.fwh += c.offset;
@@ -678,8 +684,10 @@ function renderWeek(){
   const notes = getNotes();
   const total = hours.reduce((a,b)=>a+b,0);
   const s = ratesForW(week);
-  const p = calcPay(hours, s);
+  const p = calcPay(hours, s, (week && week.makeupOT)||0);
 
+  const mkEl = document.getElementById('wkMakeup');
+  if (mkEl) mkEl.value = (week && week.makeupOT) ? week.makeupOT : '';
   document.getElementById('weekLabel').textContent = 'Sat ' + fmtShort(weekEnd);
   document.getElementById('thisWeekTag').classList.toggle('hidden', toKey(weekEndSat(new Date())) !== toKey(weekEnd));
   const wni = document.getElementById('weekNoteInput');
@@ -716,7 +724,7 @@ function renderWeek(){
   const bd = document.getElementById('breakdown');
   const lines = [
     ['Regular '+p.reg+' \u00D7 $'+s.baseRate, p.regPay, ''],
-    ...(p.ot>0 ? [['Overtime '+p.ot+' \u00D7 $'+s.otRate, p.otPay, 'ot']] : []),
+    ...(p.ot>0 ? [['Overtime '+p.ot+' \u00D7 $'+s.otRate+((week&&week.makeupOT)>0?' (incl. '+week.makeupOT+' claimed)':''), p.otPay, 'ot']] : []),
     ...(p.dt>0 ? [['Sunday 2x '+p.dt+' \u00D7 $'+(s.sundayRate||s.baseRate*2), p.dtPay, 'ot']] : []),
     ['Gross pay', p.gross, 'strong'],
     ['Federal tax', -p.fwh, ''],
@@ -745,7 +753,7 @@ function renderWeek(){
     const a = (week && week.actual) || {};
     let resultHtml = '';
     if (a.net > 0){
-      const rawP = calcPayRaw(hours, s);
+      const rawP = calcPayRaw(hours, s, (week && week.makeupOT)||0);
       const diff = p.net - a.net;
       const grossOk = !(a.gross>0) || Math.abs(a.gross - rawP.gross) <= 0.5;
       resultHtml = '<div class="compresult" style="margin-bottom:10px">'
@@ -844,7 +852,7 @@ function renderHistory(){
     const th = (v.hours||[]).reduce((a,b)=>a+b,0);
     if (th<=0) continue;
     // Prefer real numbers when we have them
-    const p = calcPay(v.hours||[], ratesForW(v));
+    const p = calcPay(v.hours||[], ratesForW(v), v.makeupOT||0);
     const useNet = (v.actual && v.actual.net>0) ? v.actual.net : p.net;
     const useGross = (v.actual && v.actual.gross>0) ? v.actual.gross : p.gross;
     const hasNotes = (v.notes||[]).some(x=>x) || !!v.weekNote;
@@ -1162,6 +1170,7 @@ function shareTimesheet(){
   const s = ratesForW(week);
   const total = hours.reduce((a,b)=>a+b,0);
   const { reg, ot, dt } = splitHours(hours, s);
+  const makeup = (week && week.makeupOT) || 0;
   const name = (state.settings.userName||'').trim();
 
   const W = 1080, PAD = 64;
@@ -1179,7 +1188,7 @@ function shareTimesheet(){
   }
   const weekNote = (week && week.weekNote) || '';
   const weekNoteLines = weekNote ? wrapText(ctx, weekNote, W-PAD*2) : [];
-  const H = 300 + (weekNoteLines.length ? weekNoteLines.length*38 + 24 : 0) + bodyH + 330;
+  const H = 300 + (weekNoteLines.length ? weekNoteLines.length*38 + 24 : 0) + bodyH + 330 + (makeup>0 ? 66 : 0);
   cv.width = W; cv.height = H;
 
   // Background
@@ -1244,6 +1253,16 @@ function shareTimesheet(){
     }
   }
 
+  // Missing-hours claim: worked, short-reported — stated plainly for payroll
+  if (makeup > 0){
+    y += 14;
+    const prevEnd = new Date(weekEnd); prevEnd.setDate(prevEnd.getDate()-7);
+    ctx.fillStyle = '#B84A00';
+    ctx.font = '700 30px ui-monospace, Menlo, monospace';
+    ctx.fillText('⚠ + '+makeup+' OT hrs worked wk ending '+(prevEnd.getMonth()+1)+'/'+prevEnd.getDate()+' — missing from that check', PAD, y+30);
+    y += 52;
+  }
+
   // Totals — heavy divider, then clear space before the text
   y += 18;
   ctx.strokeStyle = '#1A1F26'; ctx.lineWidth = 3;
@@ -1251,9 +1270,10 @@ function shareTimesheet(){
   y += 64;
   ctx.fillStyle = '#1A1F26';
   ctx.font = '800 40px ui-monospace, Menlo, monospace';
-  ctx.fillText('Total: '+total+' hrs', PAD, y);
-  const sub = 'Regular '+reg+(ot>0 ? '  \u00B7  Overtime '+ot : '')+(dt>0 ? '  \u00B7  Sunday 2x '+dt : '');
-  ctx.fillStyle = (ot>0||dt>0) ? '#E86A00' : '#68717F';
+  ctx.fillText('Total: '+(total+makeup)+' hrs'+(makeup>0?' (incl. '+makeup+' owed)':''), PAD, y);
+  const otAll = ot + makeup;
+  const sub = 'Regular '+reg+(otAll>0 ? '  \u00B7  Overtime '+otAll : '')+(dt>0 ? '  \u00B7  Sunday 2x '+dt : '');
+  ctx.fillStyle = (otAll>0||dt>0) ? '#E86A00' : '#68717F';
   ctx.font = '600 30px ui-monospace, Menlo, monospace';
   ctx.fillText(sub, PAD, y+48);
 
@@ -1410,6 +1430,12 @@ document.addEventListener('input', (e)=>{
 });
 document.addEventListener('change', (e)=>{
   const el = e.target;
+  if (el.id==='wkMakeup'){
+    const v = Math.max(0, parseFloat(el.value)||0);
+    const w2 = touchWeek();
+    if (v>0) w2.makeupOT = v; else delete w2.makeupOT;
+    save(); renderWeek(); return;
+  }
   if (el.dataset && el.dataset.boolkey){ state.settings[el.dataset.boolkey] = el.checked; save(); renderWeek(); renderSettings(); return; }
   if (el.dataset && el.dataset.sh){ updateShiftCalc(); return; }
   if (el.dataset && el.dataset.qc){ updateQuickCalc(); return; }
@@ -1771,7 +1797,7 @@ function bAvgCheck(){
   for (const [k,v] of Object.entries(state.weeks)){
     const th = (v.hours||[]).reduce((a,b)=>a+b,0);
     if (th<=0) continue;
-    const net = (v.actual && v.actual.net>0) ? v.actual.net : calcPay(v.hours||[], ratesForW(v)).net;
+    const net = (v.actual && v.actual.net>0) ? v.actual.net : calcPay(v.hours||[], ratesForW(v), v.makeupOT||0).net;
     rows.push({ d: fromKey(k), net });
   }
   rows.sort((a,b)=>b.d-a.d);
@@ -1798,13 +1824,13 @@ function bExpectedCheck(){
   const avg = bAvgCheck();
   const today = new Date(); today.setHours(0,0,0,0);
   if (logged){
-    const net = (w.actual && w.actual.net>0) ? w.actual.net : calcPay(w.hours||[], ratesForW(w)).net;
+    const net = (w.actual && w.actual.net>0) ? w.actual.net : calcPay(w.hours||[], ratesForW(w), w.makeupOT||0).net;
     if (cov <= today) return { amt:net, basis:'your week ending '+bFmtDue(cov), pd };
     if (net >= avg) return { amt:net, basis:'hours logged so far', pd }; // hours only go up — a safe floor
   }
   if (avg > 0) return { amt:avg, basis:'avg of last 4 checks', pd };
   if (logged){
-    const net = (w.actual && w.actual.net>0) ? w.actual.net : calcPay(w.hours||[], ratesForW(w)).net;
+    const net = (w.actual && w.actual.net>0) ? w.actual.net : calcPay(w.hours||[], ratesForW(w), w.makeupOT||0).net;
     return { amt:net, basis:'hours logged so far', pd };
   }
   return { amt:0, basis:'', pd };
@@ -2172,7 +2198,7 @@ function bEarnedInMonth(y,m){ // checks from weeks ending in that month, real ho
     const we = fromKey(k);
     if (we.getFullYear()!==y || we.getMonth()!==m) continue;
     if (!(v.hours||[]).some(h=>h>0)) continue;
-    sum += (v.actual && v.actual.net>0) ? v.actual.net : calcPay(v.hours||[], ratesForW(v)).net;
+    sum += (v.actual && v.actual.net>0) ? v.actual.net : calcPay(v.hours||[], ratesForW(v), v.makeupOT||0).net;
     n++;
   }
   return { sum, n };
