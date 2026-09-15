@@ -199,6 +199,10 @@
     .smallbtn, .chip, .confirmbtn, .tab, .segbtn, .bar, .day, .b-fab, .b-paneltog{ transition:none; }
     .confirmbody, .b-qpayask, .day.b-justpaid{ animation:none; }
   }
+  .claimrow{ transition:border-color .2s, box-shadow .2s; }
+  .claimrow.active{ border-color:var(--red); border-left:4px solid var(--red); }
+  .claimrow.active label{ color:var(--red); font-weight:700; }
+  .claimrow.active input{ color:var(--red); font-weight:800; border-color:var(--red); }
   .day.b-duetoday{ border-color:transparent; animation:bDueGlow 1.5s ease-in-out infinite; }
   @keyframes bDueGlow{
     0%,100%{ box-shadow:0 0 0 2px color-mix(in srgb, var(--orange) 10%, transparent), 0 0 2px color-mix(in srgb, var(--orange) 6%, transparent); }
@@ -299,8 +303,8 @@
 
     <input class="weeknoteinput" id="weekNoteInput" type="text" maxlength="100"
       placeholder="📌 Note for this whole week (optional) — e.g. schedule change, job site…">
-    <div class="setrow" style="margin-top:10px; padding:12px 16px">
-      <label for="wkMakeup" style="flex:1">⚠ Missing OT from last week (short-reported)</label>
+    <div class="setrow claimrow" id="wkMakeupRow" style="margin-top:10px; padding:12px 16px">
+      <label for="wkMakeup" style="flex:1"><span style="color:var(--red)">⚠</span> Missing OT from last week (short-reported)</label>
       <input class="compinput" id="wkMakeup" type="number" inputmode="decimal" step="0.25" min="0" placeholder="0" style="width:74px; text-align:right">
     </div>
 
@@ -688,6 +692,8 @@ function renderWeek(){
 
   const mkEl = document.getElementById('wkMakeup');
   if (mkEl) mkEl.value = (week && week.makeupOT) ? week.makeupOT : '';
+  const mkRow = document.getElementById('wkMakeupRow');
+  if (mkRow) mkRow.classList.toggle('active', !!(week && week.makeupOT > 0));
   document.getElementById('weekLabel').textContent = 'Sat ' + fmtShort(weekEnd);
   document.getElementById('thisWeekTag').classList.toggle('hidden', toKey(weekEndSat(new Date())) !== toKey(weekEnd));
   const wni = document.getElementById('weekNoteInput');
