@@ -1913,7 +1913,14 @@ function renderBills(){
     if (!arr.length) return;
     const gl = document.createElement('div');
     gl.className = 'b-grouplabel'+(cls?' '+cls:'');
+    const owed = arr.reduce((s,i)=> s + Math.max(0, bRemaining(i)), 0);
     gl.textContent = label;
+    if (owed > 0){
+      const amt = document.createElement('span');
+      amt.textContent = ' \u00B7 $'+money(owed);
+      amt.style.cssText = cls==='over' ? 'color:var(--red); font-weight:800;' : 'color:var(--dim); font-weight:600;';
+      gl.appendChild(amt);
+    }
     list.appendChild(gl);
     for (const i of arr) list.appendChild(bRow(i, todayK));
   };
