@@ -997,6 +997,17 @@ function bPaidThisMonth(tid){
   }
   return null;
 }
+function bNextClose(t){
+  if (!t.stmtDay) return null;
+  const now = new Date(); now.setHours(0,0,0,0);
+  for (let k=0; k<2; k++){
+    const first = new Date(now.getFullYear(), now.getMonth()+k, 1);
+    const day = Math.min(t.stmtDay, bDaysIn(first.getFullYear(), first.getMonth()));
+    const cand = new Date(first.getFullYear(), first.getMonth(), day);
+    if (cand >= now) return cand;
+  }
+  return null;
+}
 function bCardNextDue(tid){
   const now = new Date(); now.setHours(0,0,0,0);
   for (let off=0; off<3; off++){
@@ -1028,7 +1039,12 @@ function bRenderCards(){
     const isOpen = bCardOpen === tid;
     html += '<button class="b-tmplrow" style="width:100%; margin-top:8px'+(isOpen?'; border-color:var(--orange); border-radius:12px 12px 0 0; margin-bottom:0':'')+'" data-bcardview="'+tid+'">'
       + '<span style="text-align:left; min-width:0"><div class="b-tmplinfo">'+bIconFor(t)+' '+escapeHtml(t.name)+'</div>'
-      + '<div class="b-tmplsub">'+(nd ? 'next: $'+money(bExpAmt(nd))+' due '+bFmtDue(nd.due) : 'nothing due')+'</div></span>'
+      + '<div class="b-tmplsub">'+(nd ? 'next: $'+money(bExpAmt(nd))+' due '+bFmtDue(nd.due) : 'nothing due')
+      + (function(){ const nc = bNextClose(t); if (!nc) return '';
+          const days = Math.round((nc - new Date().setHours(0,0,0,0))/864e5);
+          const soon = days <= 7;
+          return ' \u00B7 <span style="'+(soon?'color:var(--orange); font-weight:700;':'')+'">stmt '+(days===0?'closes today':'closes '+bFmtDue(nc))+'</span>';
+        })()+'</div></span>'
       + '<span style="text-align:right"><div class="b-amt">'+(t.balance>0 ? '$'+money(t.balance) : '\u2014')+'</div>'
       + (u!==null ? '<div class="b-tmplsub" style="color:'+uCol+'; font-weight:600">'+u+'% used</div>'
                   : '<div class="b-tmplsub">tap for details</div>')+'</span></button>';
