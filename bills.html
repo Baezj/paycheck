@@ -602,7 +602,14 @@ function bLoanPayoff(tid, t){
   let total = t.loanTotal||0;
   let left = null, made = 0;
   if (t.balance > 0 && amt > 0){
-    left = Math.ceil(t.balance / amt);
+    // APR-aware: balance is principal; payments also carry future interest.
+    const periods = t.freq==='weekly' ? 52 : t.freq==='biweekly' ? 26 : t.freq==='quarterly' ? 4 : t.freq==='yearly' ? 1 : 12;
+    const r = (t.apr||0) > 0 ? (t.apr/100)/periods : 0;
+    if (r > 0 && amt > t.balance*r + 0.005){
+      left = Math.ceil(Math.log(amt / (amt - t.balance*r)) / Math.log(1 + r));
+    } else {
+      left = Math.ceil(t.balance / amt);
+    }
     if (total > 0){ left = Math.min(left, total); made = Math.max(0, total - left); }
   } else if (total > 0){
     const pr = bLoanProg(tid, t);
