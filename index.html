@@ -114,6 +114,14 @@
     white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
   .daybody{padding:0 12px 14px;}
   .chiprow{display:flex; gap:8px; margin-bottom:8px;}
+  .clockbox{border:1px solid var(--line2); border-radius:12px; padding:10px 12px; margin-bottom:10px; background:color-mix(in srgb, var(--up) 55%, transparent);}
+  .clockline{display:flex; align-items:center; justify-content:space-between; gap:8px;}
+  .clockchips .chip{font-size:12.5px; padding:9px 2px; letter-spacing:-.01em;}
+  .chip.clockstart{flex:none; padding:7px 12px;}
+  .chip.brk{font-size:12.5px;}
+  .chip.brk.on{background:var(--orange); color:var(--orange-text, #14181D); border-color:var(--orange);}
+  .clockres{font-family:ui-monospace,Menlo,monospace; font-size:12.5px; min-width:0;}
+  .clockline .chip.next{flex:none; padding:10px 14px;}
   .chip{flex:1; font-family:ui-monospace,Menlo,monospace; font-size:16px; font-weight:700; padding:12px 0; border-radius:10px; border:1px solid var(--line); background:var(--up); color:var(--text);}
   [data-theme="light"] .chip{background:var(--card);}
   .chip.on{background:var(--orange); color:var(--orange-text); border-color:var(--orange);}
@@ -373,14 +381,19 @@
       <div class="compresult" id="qcRevResult"></div>
     </div>
 
+    <div class="panel" style="margin-bottom:16px" id="schedPanel"></div>
+
     <div class="panel" style="margin-bottom:16px">
       <div class="eyebrow" style="margin-bottom:10px">Shift calculator (start / end + breaks)</div>
+      <div class="seg" id="shProfSeg" style="margin-bottom:10px">
+        <button class="segbtn" data-shp="wk">Mon\u2013Thu</button>
+        <button class="segbtn" data-shp="fri">Friday</button>
+      </div>
       <div class="comprow" style="margin-bottom:8px"><label for="shStart">Started work</label>
         <input class="compinput" id="shStart" type="time" value="07:00" data-sh="1"></div>
       <div class="comprow" style="margin-bottom:10px"><label for="shEnd">Finished work</label>
         <input class="compinput" id="shEnd" type="time" value="15:00" data-sh="1"></div>
-      <label class="skiprow"><input type="checkbox" id="shCoffee" data-sh="1"> Worked through coffee break (+0.5 OT)</label>
-      <label class="skiprow" style="margin-bottom:8px"><input type="checkbox" id="shLunch" data-sh="1"> Worked through lunch (+1 OT)</label>
+      <div id="shBreaks"></div>
       <div class="compresult" id="shResult" style="border-top:1px solid var(--line); padding-top:10px"></div>
     </div>
 
@@ -461,7 +474,11 @@
 <script>
 // ============ STATE & STORAGE ============
 const KEY = 'paytracker:v1';
-const DEFAULTS = { baseRate:49.15, otRate:73.725, sundayRate:98.30, otThreshold:40, dailyOtThreshold:8, duesPerHr:1.75, lplPerHr:0.07, savingsGoal:0, workSundays:false };
+const DEFAULTS = { baseRate:49.15, otRate:73.725, sundayRate:98.30, otThreshold:40, dailyOtThreshold:8, duesPerHr:1.75, lplPerHr:0.07, savingsGoal:0, workSundays:false,
+  // His schedule: what the clock entry already knows about a normal day. Break credit =
+  // OT hours paid for working through it (coffee 15 min -> 0.5, lunch 30 min -> 1).
+  schedule: { wk:{ start:'07:00', end:'15:00', breaks:[{label:'Coffee',credit:0.5},{label:'Lunch',credit:1},{label:'',credit:0}] },
+              fri:{ on:true, start:'06:00', end:'13:30', breaks:[{label:'Break',credit:1},{label:'',credit:0},{label:'',credit:0}] } } };
 let state = { weeks:{}, settings:{...DEFAULTS}, theme:'auto', seeded:false };
 try {
   const saved = JSON.parse(localStorage.getItem(KEY));
@@ -532,8 +549,10 @@ function splitHours(arr, s){
     if (i===0){ dt += h; }                    // Sunday = double time
     else if (i===6){ ot += h; }               // Saturday = OT rate
     else {                                    // weekdays
-      straight += Math.min(h, dailyCap);
-      ot += Math.max(0, h - dailyCap);
+      const cr = (s.credits && s.credits[i]) || 0; // break credit: always OT, never regular
+      const worked = Math.max(0, h - cr);
+      straight += Math.min(worked, dailyCap);
+      ot += Math.max(0, worked - dailyCap) + cr;
     }
   }
   const weeklyExtra = Math.max(0, straight - s.otThreshold);
@@ -595,7 +614,39 @@ function calcPay(hoursArr, s, extraOT){
   }
   return p;
 }
-function ratesForW(week){ return (week && week.rates) ? { ...DEFAULTS, ...week.rates } : state.settings; }
+function ratesForW(week){
+  const base = (week && week.rates) ? { ...DEFAULTS, ...week.rates } : { ...state.settings };
+  base.credits = (week && week.credit) || null; // per-day OT break credits (clock entry)
+  return base;
+}
+// Which schedule shape a weekday has (Friday can differ)
+function schedProfile(dow){
+  const sc = state.settings.schedule || DEFAULTS.schedule;
+  const p = (dow===5 && sc.fri && sc.fri.on) ? sc.fri : sc.wk;
+  return { start:p.start, end:p.end, breaks:(p.breaks||[]).filter(b=>b && b.label && b.credit>0) };
+}
+// The one engine behind every start/end computation (day cards + Settings calculator).
+// Payroll rounds clock-out UP to the next half hour. Skipped breaks are paid as OT credit.
+function shiftCalc(sv, ev, skipped, profile, s){
+  if (!sv || !ev) return { ok:false, err:'Enter start and end times.' };
+  const [sh,sm] = sv.split(':').map(Number);
+  let [eh,em] = ev.split(':').map(Number);
+  const rounded = em % 30 !== 0;
+  if (rounded){ em = em < 30 ? 30 : 0; if (em === 0) eh = (eh + 1) % 24; }
+  let elapsed = (eh*60+em - (sh*60+sm))/60;
+  if (elapsed < 0) elapsed += 24;
+  elapsed = Math.round(elapsed*4)/4;
+  if (elapsed <= 0) return { ok:false, err:'End time must be after start time.' };
+  let credits = 0; const skippedLabels = [];
+  profile.breaks.forEach((b,idx)=>{ if (skipped[idx]){ credits += b.credit; skippedLabels.push(b.label.toLowerCase()); } });
+  const cap = s.dailyOtThreshold || 8;
+  const reg = Math.min(elapsed, cap);
+  const ot = Math.max(0, elapsed - cap) + credits;
+  const fmt = (h,m) => (h%12===0?12:h%12)+':'+String(m).padStart(2,'0');
+  const span = fmt(sh,sm)+'\u2013'+fmt(eh,em);
+  const noteText = span + (skippedLabels.length ? ', no '+skippedLabels.join(', no ') : '');
+  return { ok:true, elapsed, credits, logAs: elapsed+credits, reg, ot, rounded, roundedTo: fmt(eh,em)+(eh<12?'am':'pm'), span, noteText };
+}
 
 // ============ DATES (week ends Saturday) ============
 // US holidays the trades commonly observe — computed by rule, valid for any year.
@@ -652,24 +703,89 @@ function touchWeek(){
   const k = toKey(weekEnd);
   const w = state.weeks[k] || { hours:[0,0,0,0,0,0,0], notes:['','','','','','',''] };
   if (!w.notes) w.notes=['','','','','','',''];
-  if (!w.rates) w.rates = { ...state.settings };
+  if (!w.rates){ const { schedule, ...rest } = state.settings; w.rates = rest; }
   state.weeks[k] = w;
   return w;
 }
-function setDay(i, v){
+function setDay(i, v, resetClock){
   v = Math.max(0, Math.min(24, Math.round(v*4)/4));
   const w = touchWeek(); w.hours[i] = v;
+  if (resetClock || v===0){ if (w.credit) delete w.credit[i]; if (w.times) delete w.times[i]; }
   save(); renderWeek();
 }
-function setNote(i, text){ const w = touchWeek(); w.notes[i] = text; save(); }
-
+// Clock entry: times are the FIRST thing on an open day card (he thinks in times, not hours).
+// Stores hours + OT credit + the times; auto-writes the note unless he wrote his own.
+let clockDrafts = {};
+function dayDate(i){ const d = new Date(weekEnd); d.setDate(d.getDate()-(6-i)); return d; }
+function clockDraft(i){
+  const wk = toKey(weekEnd);
+  if (clockDrafts[i] && clockDrafts[i].wk === wk) return clockDrafts[i];
+  const w = getWeek(); const t = w && w.times && w.times[i];
+  const p = schedProfile(dayDate(i).getDay());
+  clockDrafts[i] = t ? { wk, s:t.s, e:t.e, sk:[...(t.sk||[])], sEdit:false, eOther:false }
+                     : { wk, s:p.start, e:p.end, sk:p.breaks.map(()=>false), sEdit:false, eOther:false };
+  return clockDrafts[i];
+}
+function addMin(hhmm, mins){ const [h,m] = hhmm.split(':').map(Number); const t = ((h*60+m+mins)%1440+1440)%1440; return String(Math.floor(t/60)).padStart(2,'0')+':'+String(t%60).padStart(2,'0'); }
+function fmtClock(hhmm){ const [h,m] = hhmm.split(':').map(Number); return (h%12===0?12:h%12)+':'+String(m).padStart(2,'0'); }
+function clockResult(i){
+  const dr = clockDraft(i);
+  return shiftCalc(dr.s, dr.e, dr.sk, schedProfile(dayDate(i).getDay()), ratesForW(getWeek()));
+}
+function logClock(i){
+  const r = clockResult(i); if (!r.ok) return;
+  const dr = clockDraft(i);
+  const w = touchWeek();
+  w.hours[i] = r.logAs;
+  w.credit = w.credit || {}; w.times = w.times || {};
+  if (r.credits>0) w.credit[i] = r.credits; else delete w.credit[i];
+  const prevAuto = w.times[i] && w.times[i].note;
+  if (!w.notes[i] || w.notes[i]===prevAuto) w.notes[i] = r.noteText;
+  w.times[i] = { s:dr.s, e:dr.e, sk:[...dr.sk], note:r.noteText };
+  delete clockDrafts[i];
+  openDay = null; // folded card now shows hours + the auto-note: the "done" state
+  save(); renderWeek();
+}
+function clockSectionHtml(i, loggedTimes){
+  const dr = clockDraft(i);
+  const p = schedProfile(dayDate(i).getDay());
+  const endChips = [0,30,60,90,120,150].map(m=>addMin(p.end, m));
+  const eInList = endChips.includes(dr.e);
+  const r = clockResult(i);
+  let h = '<div class="clockbox">';
+  // start: text + pencil, or a time input while editing
+  h += '<div class="clockline"><span class="dimtext">Started</span>'
+    + (dr.sEdit ? '<input class="compinput" type="time" value="'+dr.s+'" data-clk="s:'+i+'" style="width:118px">'
+                : '<button class="chip clockstart" data-clks="'+i+'">'+fmtClock(dr.s)+' <span class="dimtext">✎</span></button>')
+    + '</div>';
+  // finished: half-hour chips from the schedule end, or a time input
+  h += '<div class="dimtext" style="margin:6px 0 4px">Finished</div>';
+  if (dr.eOther || !eInList){
+    h += '<div class="clockline"><input class="compinput" type="time" value="'+dr.e+'" data-clk="e:'+i+'" style="width:118px"><button class="chip" data-clke="'+i+':'+p.end+'">chips</button></div>';
+  } else {
+    h += '<div class="chiprow clockchips">'+endChips.map(t=>'<button class="chip'+(dr.e===t?' on':'')+'" data-clke="'+i+':'+t+'">'+fmtClock(t)+'</button>').join('')
+      + '<button class="chip" data-clko="'+i+'">…</button></div>';
+  }
+  // breaks as toggle chips
+  if (p.breaks.length){
+    h += '<div class="chiprow" style="margin-top:4px">'+p.breaks.map((b,bi)=>'<button class="chip brk'+(dr.sk[bi]?' on':'')+'" data-clkb="'+i+':'+bi+'">no '+escapeHtml(b.label.toLowerCase())+' <span class="dimtext">+'+b.credit+' OT</span></button>').join('')+'</div>';
+  }
+  // live line + log
+  h += '<div class="clockline" style="margin-top:6px">'
+    + '<span class="clockres">'+(r.ok ? r.span+(r.rounded?' <span class="dimtext">(→ '+r.roundedTo+')</span>':'')+(r.credits>0?' <span class="dimtext">+'+r.credits+' credit</span>':'')
+        + ' <span class="dimtext">· '+r.reg+' reg'+(r.ot>0?' + <b class="warn">'+r.ot+' OT</b>':'')+'</span>' : '<span class="dimtext">'+r.err+'</span>')+'</span>'
+    + '<button class="chip next" data-clklog="'+i+'"'+(r.ok?'':' disabled')+'>'+(loggedTimes?'Update':'Log')+(r.ok?' '+r.logAs+' hrs':'')+' ›</button>'
+    + '</div></div>';
+  return h;
+}
 // Per-day premium label: how many of this day's hours are OT / double time
 // (weekdays: over the daily cap; Saturday: all OT; Sunday: all double time)
 function dayPremium(i, h, s){
   if (h<=0) return '';
   if (i===0) return h+' @ 2x';
   if (i===6) return h+' @ OT';
-  const extra = h - (s.dailyOtThreshold || 8);
+  const cr = (s.credits && s.credits[i]) || 0;
+  const extra = Math.max(0, (h - cr) - (s.dailyOtThreshold || 8)) + cr;
   return extra>0 ? '+'+extra+' OT' : '';
 }
 
@@ -834,6 +950,8 @@ function renderWeek(){
       + (!open && !confirming && note ? '<span class="daynote-preview">\uD83D\uDCDD '+escapeHtml(note)+'</span>' : '')
       + (open && !confirming ?
         '<div class="daybody">'
+        + clockSectionHtml(i, !!(week && week.times && week.times[i]))
+        + '<div class="dimtext" style="margin:2px 0 6px; font-size:11px">or set total hours directly</div>'
         + '<div class="chiprow">'+[8,9,10,11,12].map(v=>'<button class="chip'+(h===v?' on':'')+'" data-set="'+i+':'+v+'">'+v+'</button>').join('')+'</div>'
         + '<div class="chiprow">'
         +   '<button class="chip" data-adj="'+i+':-0.5">\u2212\u00BD</button>'
@@ -962,40 +1080,52 @@ function syncSunSeg(){
 // ============ SHIFT CALCULATOR ============
 // Rules from Juan's contract: breaks are paid (7-3 day = 8 hrs).
 // Working through coffee = +0.5 OT on top; through lunch = +1.0 OT on top.
+let shProf = (new Date().getDay()===5) ? 'fri' : 'wk';
+function shProfileObj(){ return schedProfile(shProf==='fri' ? 5 : 1); }
+function renderShiftBreaks(){
+  const box = document.getElementById('shBreaks'); if (!box) return;
+  const p = shProfileObj();
+  box.innerHTML = p.breaks.map((b,bi)=>'<label class="skiprow"><input type="checkbox" data-sh="1" data-shb="'+bi+'"> Worked through '+escapeHtml(b.label.toLowerCase())+' (+'+b.credit+' OT)</label>').join('')
+    + (p.breaks.length ? '<div style="height:8px"></div>' : '<div class="dimtext" style="margin-bottom:8px">No breaks defined for this schedule.</div>');
+  document.querySelectorAll('#shProfSeg .segbtn').forEach(b=>b.classList.toggle('on', b.dataset.shp===shProf));
+  const fri = (state.settings.schedule||DEFAULTS.schedule).fri;
+  const seg = document.getElementById('shProfSeg'); if (seg) seg.style.display = (fri && fri.on) ? '' : 'none';
+}
 function updateShiftCalc(){
   const out = document.getElementById('shResult');
   if (!out) return;
   const s = state.settings;
-  const sv = document.getElementById('shStart').value;
-  const ev = document.getElementById('shEnd').value;
-  if (!sv || !ev){ out.innerHTML = '<span class="dimtext">Enter start and end times.</span>'; return; }
-  const [sh,sm] = sv.split(':').map(Number);
-  let [eh,em] = ev.split(':').map(Number);
-  // Payroll rounds clock-out UP to the next half hour (4:12 -> 4:30, 4:31 -> 5:00)
-  if (em % 30 !== 0){
-    em = em < 30 ? 30 : 0;
-    if (em === 0) eh = (eh + 1) % 24;
-  }
-  let elapsed = (eh*60+em - (sh*60+sm))/60;
-  if (elapsed < 0) elapsed += 24; // overnight shift
-  elapsed = Math.round(elapsed*4)/4;
-  if (elapsed <= 0){ out.innerHTML = '<span class="dimtext">End time must be after start time.</span>'; return; }
-  const credits = (document.getElementById('shCoffee').checked ? 0.5 : 0)
-                + (document.getElementById('shLunch').checked ? 1 : 0);
-  const cap = s.dailyOtThreshold || 8;
-  const reg = Math.min(elapsed, cap);
-  const ot = Math.max(0, elapsed - cap) + credits;
-  const logAs = elapsed + credits;
-  const pay = reg*s.baseRate + ot*s.otRate;
-  // What this day adds to the weekly take-home: marginal tax rates (12% fed, 6.2% SS,
-  // 1.45% Medicare, 5% MA, 0.46% PFL) plus dues/LPL on the paid hours
-  const netAdd = pay*(1 - .12 - .062 - .0145 - .05 - .0046) - logAs*(s.duesPerHr + s.lplPerHr);
-  const roundedNote = em !== Number(ev.split(':')[1]) ? ' (rounds to '+(eh%12===0?12:eh%12)+':'+String(em).padStart(2,'0')+(eh<12?'am':'pm')+')' : '';
+  const p = shProfileObj();
+  const skipped = p.breaks.map((b,bi)=>{ const el = document.querySelector('#shBreaks [data-shb="'+bi+'"]'); return !!(el && el.checked); });
+  const r = shiftCalc(document.getElementById('shStart').value, document.getElementById('shEnd').value, skipped, p, s);
+  if (!r.ok){ out.innerHTML = '<span class="dimtext">'+r.err+'</span>'; return; }
+  const pay = r.reg*s.baseRate + r.ot*s.otRate;
+  // marginal rates: what this one day adds to the week's take-home
+  const netAdd = pay*(1 - .12 - .062 - .0145 - .05 - .0046) - r.logAs*(s.duesPerHr + s.lplPerHr);
   out.innerHTML =
-    '<div>Worked '+elapsed+' hrs'+roundedNote+(credits>0 ? ' + '+credits+' OT break credit' : '')+'</div>'
-    + '<div style="margin-top:4px">'+reg+' reg + '+ot+' OT \u2192 <b>$'+money(pay)+'</b> gross \u00B7 \u2248 <b class="good">$'+money(netAdd)+'</b> take-home</div>'
-    + '<div style="margin-top:6px" class="good">\uD83D\uDCDD Log this day as: <b>'+logAs+' hrs</b></div>'
-    + (credits>0 && elapsed<cap ? '<div class="dimtext" style="margin-top:4px">Short day + break credit: logging the total counts the credit as regular time (slightly low). Rare case \u2014 note it on the day.</div>' : '');
+    '<div>Worked '+r.elapsed+' hrs'+(r.rounded?' (out rounds to '+r.roundedTo+')':'')+(r.credits>0 ? ' + '+r.credits+' OT break credit' : '')+'</div>'
+    + '<div style="margin-top:4px">'+r.reg+' reg + '+r.ot+' OT \u2192 <b>$'+money(pay)+'</b> gross \u00B7 \u2248 <b class="good">$'+money(netAdd)+'</b> take-home</div>'
+    + '<div style="margin-top:6px" class="good">\uD83D\uDCDD Log this day as: <b>'+r.logAs+' hrs</b></div>'
+    + '<div class="dimtext" style="margin-top:4px">Tip: the day cards on the Pay tab have this built in \u2014 \uD83D\uDD50 Enter start & end.</div>';
+}
+function renderSchedule(){
+  const box = document.getElementById('schedPanel'); if (!box) return;
+  const sc = state.settings.schedule || DEFAULTS.schedule;
+  const row = (prof, p) =>
+    '<div class="comprow" style="margin-bottom:8px"><label>Start</label><input class="compinput" type="time" value="'+p.start+'" data-sc="'+prof+'.start"></div>'
+    + '<div class="comprow" style="margin-bottom:8px"><label>End</label><input class="compinput" type="time" value="'+p.end+'" data-sc="'+prof+'.end"></div>'
+    + (p.breaks||[]).slice(0,3).map((b,bi)=>
+      '<div class="comprow" style="margin-bottom:6px"><label class="dimtext">Break '+(bi+1)+'</label>'
+      + '<span style="display:flex; gap:6px; align-items:center">'
+      + '<input class="compinput" type="text" placeholder="name" value="'+escapeAttr(b.label||'')+'" style="width:96px" data-sc="'+prof+'.breaks.'+bi+'.label">'
+      + '<input class="compinput" type="number" inputmode="decimal" step="0.25" min="0" placeholder="OT" value="'+(b.credit||'')+'" style="width:64px; text-align:right" data-sc="'+prof+'.breaks.'+bi+'.credit">'
+      + '</span></div>').join('');
+  box.innerHTML = '<div class="eyebrow" style="margin-bottom:10px">My schedule \u2014 powers the clock entry</div>'
+    + '<div class="dimtext" style="margin-bottom:8px">Mon\u2013Thu'+(sc.fri && sc.fri.on ? '' : ' (and Friday)')+'</div>'
+    + row('wk', sc.wk)
+    + '<label class="skiprow" style="margin:8px 0"><input type="checkbox" data-sc="fri.on"'+(sc.fri && sc.fri.on?' checked':'')+'> Friday is different</label>'
+    + (sc.fri && sc.fri.on ? '<div class="dimtext" style="margin-bottom:8px">Friday</div>'+row('fri', sc.fri) : '')
+    + '<div class="dimtext" style="margin-top:8px">Break OT = hours paid for working through it (coffee 15 min \u2192 0.5, lunch 30 min \u2192 1). Blank name = no break.</div>';
 }
 
 // ============ QUICK CALCULATOR ============
@@ -1096,6 +1226,8 @@ function renderSettings(){
   syncSunSeg();
   updateQuickCalc();
   updateQuickRev();
+  renderSchedule();
+  renderShiftBreaks();
   updateShiftCalc();
   applyTheme();
 }
@@ -1390,6 +1522,12 @@ document.addEventListener('click', (e)=>{
   if (t.dataset.sunkeep!==undefined){
     sunPrompt = false; renderWeek(); return;
   }
+  if (t.dataset.shp){ shProf = t.dataset.shp; const p = shProfileObj(); document.getElementById('shStart').value=p.start; document.getElementById('shEnd').value=p.end; renderShiftBreaks(); updateShiftCalc(); return; }
+  if (t.dataset.clke!==undefined){ const i = +t.dataset.clke.split(':')[0]; const tm = t.dataset.clke.slice(t.dataset.clke.indexOf(':')+1); const dr = clockDraft(i); dr.e = tm; dr.eOther=false; renderWeek(); return; }
+  if (t.dataset.clko!==undefined){ clockDraft(+t.dataset.clko).eOther = true; renderWeek(); return; }
+  if (t.dataset.clks!==undefined){ clockDraft(+t.dataset.clks).sEdit = true; renderWeek(); return; }
+  if (t.dataset.clkb!==undefined){ const [i,bi] = t.dataset.clkb.split(':').map(Number); const dr = clockDraft(i); dr.sk[bi] = !dr.sk[bi]; renderWeek(); return; }
+  if (t.dataset.clklog!==undefined){ logClock(+t.dataset.clklog); return; }
   if (t.dataset.day!==undefined){
     if (lpFired){ lpFired=false; return; } // this tap was the tail of a long-press
     const i = +t.dataset.day;
@@ -1400,7 +1538,7 @@ document.addEventListener('click', (e)=>{
     confirmDay = null; sunPrompt = false;
     openDay = (openDay===i? null : i); renderWeek(); return;
   }
-  if (t.dataset.set){ const [i,v] = t.dataset.set.split(':').map(Number); setDay(i,v); return; }
+  if (t.dataset.set){ const [i,v] = t.dataset.set.split(':').map(Number); setDay(i,v,true); return; }
   if (t.dataset.adj){ const [i,dv] = t.dataset.adj.split(':').map(Number); setDay(i, getHours()[i]+dv); return; }
   if (t.dataset.next!==undefined){
     const i = +t.dataset.next;
@@ -1443,6 +1581,19 @@ document.addEventListener('change', (e)=>{
     save(); renderWeek(); return;
   }
   if (el.dataset && el.dataset.boolkey){ state.settings[el.dataset.boolkey] = el.checked; save(); renderWeek(); renderSettings(); return; }
+  if (el.dataset && el.dataset.clk){
+    const [which, i] = el.dataset.clk.split(':'); const dr = clockDraft(+i);
+    if (el.value) dr[which] = el.value;
+    renderWeek(); return;
+  }
+  if (el.dataset && el.dataset.sc!==undefined){
+    const [prof, key, idx, sub] = el.dataset.sc.split('.');
+    const sc = state.settings.schedule = state.settings.schedule || JSON.parse(JSON.stringify(DEFAULTS.schedule));
+    if (key==='breaks'){ sc[prof].breaks[+idx][sub] = sub==='credit' ? Math.max(0, parseFloat(el.value)||0) : el.value.trim(); }
+    else if (key==='on'){ sc[prof].on = el.checked; }
+    else { sc[prof][key] = el.value; }
+    save(); renderSchedule(); updateShiftCalc(); renderWeek(); return;
+  }
   if (el.dataset && el.dataset.sh){ updateShiftCalc(); return; }
   if (el.dataset && el.dataset.qc){ updateQuickCalc(); return; }
   if (el.dataset && el.dataset.qcr){ updateQuickRev(); return; }
