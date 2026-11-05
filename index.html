@@ -46,6 +46,12 @@
   .weeknoteinput{width:100%; background:var(--card); border:1px dashed var(--line); border-radius:11px; color:var(--text);
     font-family:inherit; font-size:14px; padding:11px 14px; margin-bottom:14px;}
   .weeknoteinput::placeholder{color:var(--dim); font-style:italic;}
+  .weektools{display:flex; gap:8px; margin-bottom:12px;}
+  .toolchip{flex:1; background:none; border:1px dashed var(--line); border-radius:11px; color:var(--dim); font:inherit; font-size:12.5px; padding:9px 10px; cursor:pointer;}
+  .toolchip:active{transform:scale(.97);}
+  .day.future .dayhead{opacity:.5;}
+  .day.justlogged{animation: bPaidFlash .8s ease;}
+  @media (prefers-reduced-motion: reduce){ .day.justlogged{animation:none;} }
   .weeknoteinput:focus{border-style:solid; border-color:var(--orange);}
   .paycard{background:var(--card); border:1px solid var(--line); border-radius:14px; padding:18px 16px; margin-bottom:12px; cursor:pointer;}
   .bd-chevron{color:var(--dim); font-size:12px; margin-left:6px;}
@@ -320,9 +326,13 @@
       <button class="navbtn" id="nextWeek" aria-label="Next week">&#8250;</button>
     </div>
 
-    <input class="weeknoteinput" id="weekNoteInput" type="text" maxlength="100"
-      placeholder="📌 Note for this whole week (optional) — e.g. schedule change, job site…">
-    <div class="setrow claimrow" id="wkMakeupRow" style="margin-top:10px; padding:12px 16px">
+    <div class="weektools" id="weekTools">
+      <button class="toolchip" id="weekNoteTog">&#128204; Week note</button>
+      <button class="toolchip" id="claimTog"><span style="color:var(--red)">&#9888;</span> Missing OT from last check</button>
+    </div>
+    <input class="weeknoteinput hidden" id="weekNoteInput" type="text" maxlength="100"
+      placeholder="📌 Note for this whole week — e.g. schedule change, job site…">
+    <div class="setrow claimrow hidden" id="wkMakeupRow" style="margin-top:0; margin-bottom:12px; padding:12px 16px">
       <label for="wkMakeup" style="flex:1"><span style="color:var(--red)">⚠</span> Missing OT from last week (short-reported)</label>
       <input class="compinput" id="wkMakeup" type="number" inputmode="decimal" step="0.25" min="0" placeholder="0" style="width:74px; text-align:right">
     </div>
@@ -731,6 +741,8 @@ function setDay(i, v, resetClock){
 // Clock entry: times are the FIRST thing on an open day card (he thinks in times, not hours).
 // Stores hours + OT credit + the times; auto-writes the note unless he wrote his own.
 let clockDrafts = {};
+let weekNoteOpen = false, claimOpen = false;
+let justLoggedDay = null; // one-shot green flash on the card that was just logged // the two 'sometimes' tools, opened on demand
 function dayDate(i){ const d = new Date(weekEnd); d.setDate(d.getDate()-(6-i)); return d; }
 function clockDraft(i){
   const wk = toKey(weekEnd);
@@ -761,6 +773,7 @@ function logClock(i){
   const nb = document.querySelector('.noteinput[data-note="'+i+'"]'); if (nb) nb.value = w.notes[i]; // keep DOM in step so the render flush doesn't undo this
   w.times[i] = { s:dr.s, e:dr.e, sk:[...dr.sk], note:r.noteText };
   delete clockDrafts[i];
+  justLoggedDay = i;
   openDay = null;
   const today0 = new Date(); today0.setHours(0,0,0,0);
   for (let j=i+1; j<=6; j++){
@@ -872,7 +885,16 @@ function renderWeek(){
   const mkEl = document.getElementById('wkMakeup');
   if (mkEl) mkEl.value = (week && week.makeupOT) ? week.makeupOT : '';
   const mkRow = document.getElementById('wkMakeupRow');
-  if (mkRow) mkRow.classList.toggle('active', !!(week && week.makeupOT > 0));
+  const claimOn = !!(week && week.makeupOT > 0);
+  if (mkRow){ mkRow.classList.toggle('active', claimOn); mkRow.classList.toggle('hidden', !(claimOn || claimOpen)); }
+  const noteOn = !!(week && week.weekNote);
+  const wnEl = document.getElementById('weekNoteInput');
+  if (wnEl) wnEl.classList.toggle('hidden', !(noteOn || weekNoteOpen));
+  const tog1 = document.getElementById('weekNoteTog'), tog2 = document.getElementById('claimTog');
+  if (tog1) tog1.classList.toggle('hidden', noteOn || weekNoteOpen);
+  if (tog2) tog2.classList.toggle('hidden', claimOn || claimOpen);
+  const tools = document.getElementById('weekTools');
+  if (tools) tools.classList.toggle('hidden', (noteOn || weekNoteOpen) && (claimOn || claimOpen));
   document.getElementById('weekLabel').textContent = 'Sat ' + fmtShort(weekEnd);
   document.getElementById('thisWeekTag').classList.toggle('hidden', toKey(weekEndSat(new Date())) !== toKey(weekEnd));
   const wni = document.getElementById('weekNoteInput');
@@ -987,7 +1009,9 @@ function renderWeek(){
     const open = openDay===i && !dayOff;
     const confirming = confirmDay===i;
     const card = document.createElement('div');
-    card.className = 'day'+(open?' open':'')+(dayOff && !sunAsk?' off':'')+(sunAsk?' sunask':'')+(confirming?' confirm':'');
+    const isFuture = d > new Date(new Date().setHours(0,0,0,0));
+    const flash = justLoggedDay===i; if (flash) justLoggedDay = null;
+    card.className = 'day'+(open?' open':'')+(dayOff && !sunAsk?' off':'')+(sunAsk?' sunask':'')+(confirming?' confirm':'')+(isFuture && !open?' future':'')+(flash?' justlogged':'');
     card.innerHTML =
       '<button class="dayhead" data-day="'+i+'">'
       + '<span><span class="dayname'+(isToday?' today':'')+'">'+DAYS[d.getDay()]+' <span class="daydate">'+fmtShort(d)+'</span></span>'
@@ -1556,6 +1580,9 @@ document.addEventListener('click', (e)=>{
     if (prevW && prevW.hours){
       const w = touchWeek();
       w.hours = [...prevW.hours];
+      if (prevW.credit) w.credit = JSON.parse(JSON.stringify(prevW.credit)); else delete w.credit;
+      if (prevW.times)  w.times  = JSON.parse(JSON.stringify(prevW.times));  else delete w.times;
+      clockDrafts = {};
       save(); renderWeek();
     }
     return;
@@ -1579,6 +1606,8 @@ document.addEventListener('click', (e)=>{
     sunPrompt = false; renderWeek(); return;
   }
   if (t.dataset.shp){ shProf = t.dataset.shp; const p = shProfileObj(); document.getElementById('shStart').value=p.start; document.getElementById('shEnd').value=p.end; renderShiftBreaks(); updateShiftCalc(); return; }
+  if (t.id==='weekNoteTog'){ weekNoteOpen = true; renderWeek(); const el=document.getElementById('weekNoteInput'); if (el) el.focus(); return; }
+  if (t.id==='claimTog'){ claimOpen = true; renderWeek(); const el=document.getElementById('wkMakeup'); if (el) el.focus(); return; }
   if (t.dataset.clke!==undefined){ const i = +t.dataset.clke.split(':')[0]; const tm = t.dataset.clke.slice(t.dataset.clke.indexOf(':')+1); const dr = clockDraft(i); dr.e = tm; dr.eOther=false; renderWeek(); return; }
   if (t.dataset.clko!==undefined){ clockDraft(+t.dataset.clko).eOther = true; renderWeek(); return; }
   if (t.dataset.clksx!==undefined){ clockDraft(+t.dataset.clksx).sEdit = false; renderWeek(); return; }
@@ -1720,7 +1749,7 @@ document.getElementById('payCard').addEventListener('click', (e)=>{
     if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy)*1.5){
       const dir = dx < 0 ? 1 : -1; // swipe left = next week
       weekEnd.setDate(weekEnd.getDate() + dir*7);
-      openDay=null; confirmDay=null; sunPrompt=false; showComp=false; renderWeek(); weekSlide(dir);
+      openDay=null; confirmDay=null; sunPrompt=false; showComp=false; weekNoteOpen=false; claimOpen=false; renderWeek(); weekSlide(dir);
     }
   }, {passive:true});
 })();
