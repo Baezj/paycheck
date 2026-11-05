@@ -489,7 +489,7 @@ const DEFAULTS = { baseRate:49.15, otRate:73.725, sundayRate:98.30, otThreshold:
   // His schedule: what the clock entry already knows about a normal day. Break credit =
   // OT hours paid for working through it (coffee 15 min -> 0.5, lunch 30 min -> 1).
   schedule: { wk:{ start:'07:00', end:'15:00', breaks:[{label:'Coffee',credit:0.5},{label:'Lunch',credit:1},{label:'',credit:0}] },
-              fri:{ on:true, start:'06:00', end:'13:30', breaks:[{label:'Break',credit:1},{label:'',credit:0},{label:'',credit:0}] } } };
+              fri:{ on:true, start:'06:00', end:'13:30', minPaid:8, breaks:[{label:'Break',credit:1},{label:'',credit:0},{label:'',credit:0}] } } };
 let state = { weeks:{}, settings:{...DEFAULTS}, theme:'auto', seeded:false };
 try {
   const saved = JSON.parse(localStorage.getItem(KEY));
@@ -633,8 +633,10 @@ function ratesForW(week){
 // Which schedule shape a weekday has (Friday can differ)
 function schedProfile(dow){
   const sc = state.settings.schedule || DEFAULTS.schedule;
-  const p = (dow===5 && sc.fri && sc.fri.on) ? sc.fri : sc.wk;
-  return { start:p.start, end:p.end, breaks:(p.breaks||[]).filter(b=>b && b.label && b.credit>0) };
+  const key = (dow===5 && sc.fri && sc.fri.on) ? 'fri' : 'wk';
+  const p = sc[key];
+  const minPaid = (p.minPaid!==undefined && p.minPaid!==null && p.minPaid!=='') ? +p.minPaid : (DEFAULTS.schedule[key].minPaid||0);
+  return { start:p.start, end:p.end, minPaid, breaks:(p.breaks||[]).filter(b=>b && b.label && b.credit>0) };
 }
 // The one engine behind every start/end computation (day cards + Settings calculator).
 // Payroll rounds clock-out UP to the next half hour. Skipped breaks are paid as OT credit.
@@ -648,6 +650,9 @@ function shiftCalc(sv, ev, skipped, profile, s){
   if (elapsed < 0) elapsed += 24;
   elapsed = Math.round(elapsed*4)/4;
   if (elapsed <= 0) return { ok:false, err:'End time must be after start time.' };
+  const floor = profile.minPaid || 0;
+  const floored = elapsed < floor;        // short shift paid as a full day (Friday 6–1:30 pays 8)
+  if (floored) elapsed = floor;
   let credits = 0; const skippedLabels = [];
   profile.breaks.forEach((b,idx)=>{ if (skipped[idx]){ credits += b.credit; skippedLabels.push(b.label.toLowerCase()); } });
   const cap = s.dailyOtThreshold || 8;
@@ -656,7 +661,7 @@ function shiftCalc(sv, ev, skipped, profile, s){
   const fmt = (h,m) => (h%12===0?12:h%12)+':'+String(m).padStart(2,'0');
   const span = fmt(sh,sm)+'\u2013'+fmt(eh,em);
   const noteText = span + (skippedLabels.length ? ', no '+skippedLabels.join(', no ') : '');
-  return { ok:true, elapsed, credits, logAs: elapsed+credits, reg, ot, rounded, roundedTo: fmt(eh,em)+(eh<12?'am':'pm'), span, noteText };
+  return { ok:true, elapsed, credits, logAs: elapsed+credits, reg, ot, rounded, roundedTo: fmt(eh,em)+(eh<12?'am':'pm'), span, noteText, floored, floor };
 }
 
 // ============ DATES (week ends Saturday) ============
@@ -803,7 +808,7 @@ function clockSectionHtml(i, loggedTimes){
   // Result + the one action
   h += '<div class="clockres">'+(r.ok
       ? '<b>'+r.logAs+' hrs</b> <span class="dimtext">\u00B7 '+r.reg+' reg'+(r.ot>0?' + <b class="warn">'+r.ot+' OT</b>':'')
-        + (r.credits>0?' (incl. '+r.credits+' break credit)':'')+(r.rounded?' \u00B7 out rounds to '+r.roundedTo:'')+'</span>'
+        + (r.credits>0?' (incl. '+r.credits+' break credit)':'')+(r.floored?' \u00B7 paid as a full '+r.floor:'')+(r.rounded?' \u00B7 out rounds to '+r.roundedTo:'')+'</span>'
       : '<span class="dimtext">'+r.err+'</span>')+'</div>';
   h += '<button class="chip next clocklog" data-clklog="'+i+'"'+(r.ok?'':' disabled')+'>'+(loggedTimes?'Update':'Log')+(r.ok?' '+r.logAs+' hrs':'')+' \u203A</button>';
   h += '</div>';
@@ -1154,7 +1159,7 @@ function updateShiftCalc(){
   // marginal rates: what this one day adds to the week's take-home
   const netAdd = pay*(1 - .12 - .062 - .0145 - .05 - .0046) - r.logAs*(s.duesPerHr + s.lplPerHr);
   out.innerHTML =
-    '<div>Worked '+r.elapsed+' hrs'+(r.rounded?' (out rounds to '+r.roundedTo+')':'')+(r.credits>0 ? ' + '+r.credits+' OT break credit' : '')+'</div>'
+    '<div>Worked '+r.elapsed+' hrs'+(r.floored?' (paid as a full '+r.floor+')':'')+(r.rounded?' (out rounds to '+r.roundedTo+')':'')+(r.credits>0 ? ' + '+r.credits+' OT break credit' : '')+'</div>'
     + '<div style="margin-top:4px">'+r.reg+' reg + '+r.ot+' OT \u2192 <b>$'+money(pay)+'</b> gross \u00B7 \u2248 <b class="good">$'+money(netAdd)+'</b> take-home</div>'
     + '<div style="margin-top:6px" class="good">\uD83D\uDCDD Log this day as: <b>'+r.logAs+' hrs</b></div>'
     + '<div class="dimtext" style="margin-top:4px">Tip: the day cards on the Pay tab have this built in \u2014 \uD83D\uDD50 Enter start & end.</div>';
@@ -1165,6 +1170,7 @@ function renderSchedule(){
   const row = (prof, p) =>
     '<div class="comprow" style="margin-bottom:8px"><label>Start</label><input class="compinput" type="time" value="'+p.start+'" data-sc="'+prof+'.start"></div>'
     + '<div class="comprow" style="margin-bottom:8px"><label>End</label><input class="compinput" type="time" value="'+p.end+'" data-sc="'+prof+'.end"></div>'
+    + '<div class="comprow" style="margin-bottom:8px"><label>Paid as at least (hrs)</label><input class="compinput" type="number" inputmode="decimal" step="0.5" min="0" placeholder="0" value="'+((p.minPaid!==undefined&&p.minPaid!==null)?p.minPaid:(DEFAULTS.schedule[prof].minPaid||''))+'" style="width:74px; text-align:right" data-sc="'+prof+'.minPaid"></div>'
     + (p.breaks||[]).slice(0,3).map((b,bi)=>
       '<div class="comprow" style="margin-bottom:6px"><label class="dimtext">Break '+(bi+1)+'</label>'
       + '<span style="display:flex; gap:6px; align-items:center">'
@@ -1176,7 +1182,7 @@ function renderSchedule(){
     + row('wk', sc.wk)
     + '<label class="skiprow" style="margin:8px 0"><input type="checkbox" data-sc="fri.on"'+(sc.fri && sc.fri.on?' checked':'')+'> Friday is different</label>'
     + (sc.fri && sc.fri.on ? '<div class="dimtext" style="margin-bottom:8px">Friday</div>'+row('fri', sc.fri) : '')
-    + '<div class="dimtext" style="margin-top:8px">Break OT = hours paid for working through it (coffee 15 min \u2192 0.5, lunch 30 min \u2192 1). Blank name = no break.</div>';
+    + '<div class="dimtext" style="margin-top:8px">Break OT = hours paid for working through it (coffee 15 min \u2192 0.5, lunch 30 min \u2192 1). Blank name = no break. \u201CPaid as at least\u201D = a short shift the company still pays as a full day (Friday 6\u20131:30 pays 8).</div>';
 }
 
 // ============ QUICK CALCULATOR ============
@@ -1646,6 +1652,7 @@ document.addEventListener('change', (e)=>{
     const sc = state.settings.schedule = state.settings.schedule || JSON.parse(JSON.stringify(DEFAULTS.schedule));
     if (key==='breaks'){ sc[prof].breaks[+idx][sub] = sub==='credit' ? Math.max(0, parseFloat(el.value)||0) : el.value.trim(); }
     else if (key==='on'){ sc[prof].on = el.checked; }
+    else if (key==='minPaid'){ sc[prof].minPaid = Math.max(0, parseFloat(el.value)||0); }
     else { sc[prof][key] = el.value; }
     save(); renderSchedule(); updateShiftCalc(); renderWeek(); return;
   }
