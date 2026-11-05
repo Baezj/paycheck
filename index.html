@@ -311,6 +311,54 @@
   }
   .dayhead:active{ opacity:.7; transition:opacity .08s ease; }
   @media (prefers-reduced-motion: reduce){ *{transition:none !important; animation:none !important;} }
+
+  /* ================= CLEAN SKIN =================
+     Sans for everything you read, mono only for things you count.
+     Surfaces separate by tone, not by outlines; the only borders left are status. */
+  html[data-skin="clean"] *{ font-family:-apple-system,'SF Pro Text','Segoe UI',Roboto,Helvetica,Arial,sans-serif; }
+  html[data-skin="clean"] .net, html[data-skin="clean"] .dayhrs, html[data-skin="clean"] .hrsinfo,
+  html[data-skin="clean"] .chip.tchip, html[data-skin="clean"] .clockres, html[data-skin="clean"] .b-amt,
+  html[data-skin="clean"] .b-sts, html[data-skin="clean"] .histnet, html[data-skin="clean"] .gval,
+  html[data-skin="clean"] .chartval, html[data-skin="clean"] input, html[data-skin="clean"] .b-togval,
+  html[data-skin="clean"] .b-tmplsub, html[data-skin="clean"] .bd-line, html[data-skin="clean"] .compresult,
+  html[data-skin="clean"] .b-stsline, html[data-skin="clean"] .b-duetag, html[data-skin="clean"] .chip{ font-variant-numeric:tabular-nums; }
+  html[data-skin="clean"] .net{ font-weight:800; }
+  html[data-skin="clean"] .b-sts{ font-weight:800; letter-spacing:-.02em; }
+  html[data-skin="clean"] .eyebrow, html[data-skin="clean"] .b-grouplabel, html[data-skin="clean"] .clocklbl{ font-family:-apple-system,'SF Pro Text',sans-serif; font-size:11.5px; font-weight:600; letter-spacing:.08em; }
+  html[data-skin="clean"] .thisweek, html[data-skin="clean"] .dayname{ font-family:-apple-system,'SF Pro Text',sans-serif; }
+  html[data-skin="clean"] .daydate{ font-size:14px; }
+  html[data-skin="clean"] .dayhrs{ font-size:18px; letter-spacing:-.01em; }
+  html[data-skin="clean"] .net{ letter-spacing:-.025em; }
+  html[data-skin="clean"] .paycard, html[data-skin="clean"] .panel, html[data-skin="clean"] .day,
+  html[data-skin="clean"] .navbtn, html[data-skin="clean"] .repeatbar, html[data-skin="clean"] .sharebar,
+  html[data-skin="clean"] .b-paneltog, html[data-skin="clean"] .noteinput, html[data-skin="clean"] .compinput,
+  html[data-skin="clean"] .smallbtn, html[data-skin="clean"] .segbtn, html[data-skin="clean"] .confirmbtn{ border-color:transparent; }
+  html[data-skin="clean"] .paycard, html[data-skin="clean"] .panel, html[data-skin="clean"] .day{ box-shadow: inset 0 1px 0 rgba(255,255,255,.04); border-radius:16px; }
+  html[data-skin="clean"] .day{ margin-bottom:6px; }
+  html[data-skin="clean"] .day.open{ background:var(--up); border-color:var(--orange); box-shadow:none; }
+  html[data-skin="clean"] .day.sunask, html[data-skin="clean"] .day.b-menu{ border-color:var(--orange); }
+  html[data-skin="clean"] .day.confirm, html[data-skin="clean"] .day.b-over{ border-color:var(--red); }
+  html[data-skin="clean"] .day.b-t1{ border-left:4px solid var(--orange); }
+  html[data-skin="clean"] .day.b-t2{ border-left:4px solid var(--line2, var(--line)); }
+  html[data-skin="clean"] .claimrow.active{ border-color:var(--red); }
+  html[data-skin="clean"] .clockbox{ border-color:transparent; background:color-mix(in srgb, var(--card) 70%, transparent); }
+  html[data-skin="clean"] .chip{ border-color:transparent; background:var(--up); border-radius:12px; font-weight:600; }
+  html[data-skin="clean"] .day.open .chip{ background:var(--card); }
+  html[data-skin="clean"] .chip.tchip.pick, html[data-skin="clean"] .day.open .chip.tchip.pick{ background:var(--text); color:var(--bg); }
+  html[data-skin="clean"] .chip.on, html[data-skin="clean"] .chip.next,
+  html[data-skin="clean"] .day.open .chip.on, html[data-skin="clean"] .day.open .chip.next{ background:var(--orange); color:var(--orange-text); }
+  html[data-skin="clean"] .chip.clear, html[data-skin="clean"] .day.open .chip.clear{ color:var(--red); }
+  html[data-skin="clean"] .chip.next.clocklog{ border-radius:14px; font-size:17px; font-weight:700; }
+  html[data-skin="clean"] .verifybtn{ background:color-mix(in srgb, var(--orange) 16%, transparent); border-color:transparent; border-radius:12px; font-weight:600; }
+  html[data-skin="clean"] .toolchip{ border-style:solid; border-color:transparent; background:color-mix(in srgb, var(--card) 70%, transparent); border-radius:12px; }
+  html[data-skin="clean"] .noteinput, html[data-skin="clean"] .weeknoteinput{ background:var(--card); border-radius:12px; }
+  html[data-skin="clean"] .weeknoteinput{ border-style:solid; border-color:transparent; }
+  html[data-skin="clean"] .smallbtn, html[data-skin="clean"] .confirmbtn{ border-radius:12px; font-weight:600; }
+  html[data-skin="clean"] .tab{ font-size:13.5px; font-weight:600; border-radius:12px; }
+  html[data-skin="clean"] .weeklabel .weekdate{ font-weight:700; letter-spacing:-.01em; }
+  html[data-skin="clean"] .navbtn{ background:var(--card); border-radius:14px; }
+  html[data-skin="clean"] .b-name{ font-size:16px; }
+  html[data-skin="clean"] .b-grouplabel{ margin:16px 2px 8px; }
 </style>
 </head>
 <body>
@@ -426,6 +474,13 @@
         <button class="segbtn" data-theme-pick="light">Light</button>
       </div>
     </div>
+    <div class="setrow">
+      <label>Style</label>
+      <div class="seg" id="skinSeg">
+        <button class="segbtn" data-skin-pick="classic">Classic</button>
+        <button class="segbtn" data-skin-pick="clean">Clean</button>
+      </div>
+    </div>
 
     <div class="setrow">
       <label>Sundays</label>
@@ -536,7 +591,13 @@ if (!state.seeded){
 
 // ============ THEME ============
 const mq = window.matchMedia('(prefers-color-scheme: light)');
+function applySkin(){
+  const s = (state.settings && state.settings.skin) || 'classic';
+  document.documentElement.setAttribute('data-skin', s);
+  document.querySelectorAll('[data-skin-pick]').forEach(b=> b.classList.toggle('on', b.dataset.skinPick===s));
+}
 function applyTheme(){
+  applySkin();
   const mode = state.theme==='auto' ? (mq.matches?'light':'dark') : state.theme;
   document.documentElement.setAttribute('data-theme', mode);
   const meta = document.querySelector('meta[name="theme-color"]');
@@ -1531,6 +1592,7 @@ document.addEventListener('click', (e)=>{
     return;
   }
   if (t.dataset.themePick){ state.theme = t.dataset.themePick; save(); applyTheme(); return; }
+  if (t.dataset.skinPick){ state.settings.skin = t.dataset.skinPick; save(); applySkin(); return; }
   if (t.dataset.sunPick){
     state.settings.workSundays = (t.dataset.sunPick==='on');
     save(); syncSunSeg(); return;
