@@ -115,17 +115,22 @@
   .daybody{padding:0 12px 14px;}
   .chiprow{display:flex; gap:8px; margin-bottom:8px;}
   .clockbox{border:1px solid var(--line2); border-radius:12px; padding:10px 12px 12px; margin-bottom:6px; background:color-mix(in srgb, var(--up) 55%, transparent);}
-  .clockrow{display:flex; align-items:center; gap:10px; margin-bottom:8px; min-height:34px;}
+  .clockrow{display:flex; align-items:center; gap:10px; margin-bottom:6px; min-height:34px;}
   .clocklbl{flex:none; width:58px; font-size:12px; color:var(--dim); text-transform:uppercase; letter-spacing:.06em;}
   .clockval{flex:1; min-width:0; display:flex; align-items:center; gap:8px; font-size:15px;}
   .clockchips{display:flex; gap:6px; flex:1; min-width:0;}
+  .clockchips.scrollx{overflow-x:auto; -webkit-overflow-scrolling:touch; scrollbar-width:none; padding:2px 0; scroll-snap-type:x proximity; mask-image:linear-gradient(90deg,#000 88%,transparent); -webkit-mask-image:linear-gradient(90deg,#000 88%,transparent);}
+  .clockchips.scrollx::-webkit-scrollbar{display:none;}
+  .clockchips.scrollx .chip.tchip{flex:0 0 auto; min-width:58px; padding:9px 10px; scroll-snap-align:start;}
+  .startbtn{background:none; border:none; color:var(--text); font:inherit; font-size:15px; padding:4px 0; cursor:pointer;}
+  .clockrow.startrow{min-height:28px; margin-bottom:4px;}
   .chip.tchip{flex:1; min-width:0; font-size:12.5px; padding:9px 0; letter-spacing:-.01em; background:var(--card); border-color:var(--line2); color:var(--text); font-weight:600;}
   .chip.tchip.pick{background:var(--text); color:var(--bg); border-color:var(--text);}
   .chip.tchip.brk{padding:9px 6px;}
   .chip.tchip.brk .dimtext{font-size:11px;}
   .chip.tchip.pick .dimtext{color:var(--bg); opacity:.7;}
   .chip.tiny{flex:none; padding:5px 10px; font-size:12px; background:transparent; color:var(--dim); border-color:var(--line2);}
-  .clockres{font-family:ui-monospace,Menlo,monospace; font-size:13px; margin:4px 0 10px; padding-top:10px; border-top:1px solid var(--line);}
+  .clockres{font-family:ui-monospace,Menlo,monospace; font-size:13px; margin:2px 0 8px; padding-top:8px; border-top:1px solid var(--line);}
   .chip.next.clocklog{width:100%; padding:13px; font-size:16px; margin:0;}
   .modelink{display:block; width:100%; background:none; border:none; color:var(--dim); font:inherit; font-size:12.5px; padding:6px 0 8px; text-align:center; cursor:pointer;}
   .chip{flex:1; font-family:ui-monospace,Menlo,monospace; font-size:16px; font-weight:700; padding:12px 0; border-radius:10px; border:1px solid var(--line); background:var(--up); color:var(--text);}
@@ -762,25 +767,30 @@ function logClock(i){
   }
   save(); renderWeek();
 }
+function clockScrollPick(){
+  const row = document.querySelector('.day.open .clockchips.scrollx'); if (!row) return;
+  const pick = row.querySelector('.pick');
+  if (pick && pick.offsetLeft !== undefined) row.scrollLeft = Math.max(0, pick.offsetLeft - row.clientWidth/2 + pick.offsetWidth/2);
+}
 function clockSectionHtml(i, loggedTimes){
   const dr = clockDraft(i);
   const p = schedProfile(dayDate(i).getDay());
-  const endChips = [0,30,60,90,120,150].map(m=>addMin(p.end, m));
+  const endChips = Array.from({length:11}, (_,k)=>addMin(p.end, k*30)); // schedule end .. +5h, scrollable
   const eInList = endChips.includes(dr.e);
   const r = clockResult(i);
   let h = '<div class="clockbox">';
   // Started
-  h += '<div class="clockrow"><span class="clocklbl">Started</span><span class="clockval">'
+  h += '<div class="clockrow startrow"><span class="clocklbl">Started</span><span class="clockval">'
     + (dr.sEdit
         ? '<input class="compinput" type="time" value="'+dr.s+'" data-clk="s:'+i+'" style="width:118px"><button class="chip tiny" data-clksx="'+i+'">\u2715</button>'
-        : '<b>'+fmtClock(dr.s)+(+dr.s.split(':')[0]<12?' AM':' PM')+'</b><button class="chip tiny" data-clks="'+i+'">change</button>')
+        : '<button class="startbtn" data-clks="'+i+'"><b>'+fmtClock(dr.s)+(+dr.s.split(':')[0]<12?' AM':' PM')+'</b> <span class="dimtext">\u270E</span></button>')
     + '</span></div>';
   // Left at
   h += '<div class="clockrow"><span class="clocklbl">Left at</span><span class="clockval">';
   if (dr.eOther || !eInList){
     h += '<input class="compinput" type="time" value="'+dr.e+'" data-clk="e:'+i+'" style="width:118px"><button class="chip tiny" data-clke="'+i+':'+p.end+'">\u2715</button>';
   } else {
-    h += '<span class="clockchips">'+endChips.map(t=>'<button class="chip tchip'+(dr.e===t?' pick':'')+'" data-clke="'+i+':'+t+'">'+fmtClock(t)+'</button>').join('')
+    h += '<span class="clockchips scrollx">'+endChips.map(t=>'<button class="chip tchip'+(dr.e===t?' pick':'')+'" data-clke="'+i+':'+t+'">'+fmtClock(t)+'</button>').join('')
       + '<button class="chip tchip" data-clko="'+i+'">other</button></span>';
   }
   h += '</span></div>';
@@ -847,6 +857,7 @@ function weekSlide(dir){
 // ============ RENDER: WEEK ============
 function renderWeek(){
   flushNotes();
+  setTimeout(clockScrollPick, 0);
   const week = getWeek();
   const hours = getHours();
   const notes = getNotes();
@@ -1665,7 +1676,7 @@ document.getElementById('payCard').addEventListener('click', (e)=>{
   const cancelLP = () => { if (lpTimer){ clearTimeout(lpTimer); lpTimer=null; } };
 
   zone.addEventListener('touchstart', (e)=>{
-    if (e.target.closest('input')) { tracking=false; return; } // don't fight text cursors
+    if (e.target.closest('input') || e.target.closest('.scrollx')) { tracking=false; return; } // text cursors / horizontal chip scroll
     const t = e.touches[0];
     x0=t.clientX; y0=t.clientY; tracking=true;
 
@@ -3829,6 +3840,10 @@ if (toKey(weekEndSat(new Date())) === toKey(weekEnd)){
   openDay = ((td===0 && !state.settings.workSundays) || td===6 || alreadyLogged || !!usHoliday(new Date())) ? null : td;
 }
 renderWeek();
+// Land on the card that needs you — no scrolling past the week to get to tonight's entry
+if (openDay !== null){
+  setTimeout(()=>{ const c = document.querySelector('.day.open'); if (c && c.scrollIntoView) c.scrollIntoView({behavior:'smooth', block:'start'}); }, 120);
+}
 
 // Offline support — cache the app so it loads with no signal
 if ('serviceWorker' in navigator){
