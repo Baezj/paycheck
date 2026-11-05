@@ -125,9 +125,9 @@
   .clocklbl{flex:none; width:58px; font-size:12px; color:var(--dim); text-transform:uppercase; letter-spacing:.06em;}
   .clockval{flex:1; min-width:0; display:flex; align-items:center; gap:8px; font-size:15px;}
   .clockchips{display:flex; gap:6px; flex:1; min-width:0;}
-  .clockchips.scrollx{overflow-x:auto; -webkit-overflow-scrolling:touch; touch-action:pan-x; overscroll-behavior-x:contain; scrollbar-width:none; padding:2px 0; scroll-snap-type:x proximity; mask-image:linear-gradient(90deg,#000 88%,transparent); -webkit-mask-image:linear-gradient(90deg,#000 88%,transparent);}
+  .clockchips.scrollx{display:flex; overflow-x:auto; overflow-y:hidden; -webkit-overflow-scrolling:touch; scrollbar-width:none; padding:2px 24px 2px 0;}
   .clockchips.scrollx::-webkit-scrollbar{display:none;}
-  .clockchips.scrollx .chip.tchip{flex:0 0 auto; min-width:58px; padding:9px 10px; scroll-snap-align:center;}
+  .clockchips.scrollx .chip.tchip{flex:0 0 auto; min-width:58px; padding:9px 10px;}
   .startbtn{background:none; border:none; color:var(--text); font:inherit; font-size:15px; padding:4px 0; cursor:pointer;}
   .clockrow.startrow{min-height:28px; margin-bottom:4px;}
   .chip.tchip{flex:1; min-width:0; font-size:12.5px; padding:9px 0; letter-spacing:-.01em; background:var(--card); border-color:var(--line2); color:var(--text); font-weight:600;}
@@ -870,8 +870,8 @@ function clockSectionHtml(i, loggedTimes){
   if (dr.eOther || !eInList){
     h += '<input class="compinput" type="time" value="'+dr.e+'" data-clk="e:'+i+'" style="width:118px"><button class="chip tiny" data-clke="'+i+':'+p.end+'">\u2715</button>';
   } else {
-    h += '<span class="clockchips scrollx">'+endChips.map(t=>'<button class="chip tchip'+(dr.e===t?' pick':'')+'" data-clke="'+i+':'+t+'">'+fmtClock(t)+'</button>').join('')
-      + '<button class="chip tchip" data-clko="'+i+'">other</button></span>';
+    h += '<div class="clockchips scrollx">'+endChips.map(t=>'<button class="chip tchip'+(dr.e===t?' pick':'')+'" data-clke="'+i+':'+t+'">'+fmtClock(t)+'</button>').join('')
+      + '<button class="chip tchip" data-clko="'+i+'">other</button></div>';
   }
   h += '</span></div>';
   // Skipped breaks
@@ -1803,6 +1803,21 @@ document.getElementById('payCard').addEventListener('click', (e)=>{
   }, {passive:true});
 
   zone.addEventListener('touchcancel', cancelLP, {passive:true});
+
+  // Left-at / Skipped chips live inside a horizontal scroller. iOS sometimes withholds the
+  // synthesized click there, so a short, still touch is handled directly as a tap.
+  let cx0=0, cy0=0, ct0=0;
+  zone.addEventListener('touchstart', (e)=>{
+    if (!e.target.closest('.clockchips')) return;
+    const t=e.touches[0]; cx0=t.clientX; cy0=t.clientY; ct0=Date.now();
+  }, {passive:true});
+  zone.addEventListener('touchend', (e)=>{
+    const btn = e.target.closest('.clockchips button'); if (!btn) return;
+    const t=e.changedTouches[0];
+    if (Math.abs(t.clientX-cx0) > 8 || Math.abs(t.clientY-cy0) > 8 || Date.now()-ct0 > 600) return; // a scroll, not a tap
+    e.preventDefault(); // one action: ours, not a later click too
+    btn.click();
+  }, {passive:false});
 
   zone.addEventListener('touchend', (e)=>{
     cancelLP();
