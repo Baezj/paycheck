@@ -114,14 +114,20 @@
     white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
   .daybody{padding:0 12px 14px;}
   .chiprow{display:flex; gap:8px; margin-bottom:8px;}
-  .clockbox{border:1px solid var(--line2); border-radius:12px; padding:10px 12px; margin-bottom:10px; background:color-mix(in srgb, var(--up) 55%, transparent);}
-  .clockline{display:flex; align-items:center; justify-content:space-between; gap:8px;}
-  .clockchips .chip{font-size:12.5px; padding:9px 2px; letter-spacing:-.01em;}
-  .chip.clockstart{flex:none; padding:7px 12px;}
-  .chip.brk{font-size:12.5px;}
-  .chip.brk.on{background:var(--orange); color:var(--orange-text, #14181D); border-color:var(--orange);}
-  .clockres{font-family:ui-monospace,Menlo,monospace; font-size:12.5px; min-width:0;}
-  .clockline .chip.next{flex:none; padding:10px 14px;}
+  .clockbox{border:1px solid var(--line2); border-radius:12px; padding:10px 12px 12px; margin-bottom:6px; background:color-mix(in srgb, var(--up) 55%, transparent);}
+  .clockrow{display:flex; align-items:center; gap:10px; margin-bottom:8px; min-height:34px;}
+  .clocklbl{flex:none; width:58px; font-size:12px; color:var(--dim); text-transform:uppercase; letter-spacing:.06em;}
+  .clockval{flex:1; min-width:0; display:flex; align-items:center; gap:8px; font-size:15px;}
+  .clockchips{display:flex; gap:6px; flex:1; min-width:0;}
+  .chip.tchip{flex:1; min-width:0; font-size:12.5px; padding:9px 0; letter-spacing:-.01em; background:var(--card); border-color:var(--line2); color:var(--text); font-weight:600;}
+  .chip.tchip.pick{background:var(--text); color:var(--bg); border-color:var(--text);}
+  .chip.tchip.brk{padding:9px 6px;}
+  .chip.tchip.brk .dimtext{font-size:11px;}
+  .chip.tchip.pick .dimtext{color:var(--bg); opacity:.7;}
+  .chip.tiny{flex:none; padding:5px 10px; font-size:12px; background:transparent; color:var(--dim); border-color:var(--line2);}
+  .clockres{font-family:ui-monospace,Menlo,monospace; font-size:13px; margin:4px 0 10px; padding-top:10px; border-top:1px solid var(--line);}
+  .chip.next.clocklog{width:100%; padding:13px; font-size:16px; margin:0;}
+  .modelink{display:block; width:100%; background:none; border:none; color:var(--dim); font:inherit; font-size:12.5px; padding:6px 0 8px; text-align:center; cursor:pointer;}
   .chip{flex:1; font-family:ui-monospace,Menlo,monospace; font-size:16px; font-weight:700; padding:12px 0; border-radius:10px; border:1px solid var(--line); background:var(--up); color:var(--text);}
   [data-theme="light"] .chip{background:var(--card);}
   .chip.on{background:var(--orange); color:var(--orange-text); border-color:var(--orange);}
@@ -722,8 +728,9 @@ function clockDraft(i){
   if (clockDrafts[i] && clockDrafts[i].wk === wk) return clockDrafts[i];
   const w = getWeek(); const t = w && w.times && w.times[i];
   const p = schedProfile(dayDate(i).getDay());
-  clockDrafts[i] = t ? { wk, s:t.s, e:t.e, sk:[...(t.sk||[])], sEdit:false, eOther:false }
-                     : { wk, s:p.start, e:p.end, sk:p.breaks.map(()=>false), sEdit:false, eOther:false };
+  const hasHoursNoTimes = !t && w && (w.hours||[])[i] > 0;
+  clockDrafts[i] = t ? { wk, mode:'clock', s:t.s, e:t.e, sk:[...(t.sk||[])], sEdit:false, eOther:false }
+                     : { wk, mode:(hasHoursNoTimes?'hours':'clock'), s:p.start, e:p.end, sk:p.breaks.map(()=>false), sEdit:false, eOther:false };
   return clockDrafts[i];
 }
 function addMin(hhmm, mins){ const [h,m] = hhmm.split(':').map(Number); const t = ((h*60+m+mins)%1440+1440)%1440; return String(Math.floor(t/60)).padStart(2,'0')+':'+String(t%60).padStart(2,'0'); }
@@ -743,7 +750,14 @@ function logClock(i){
   if (!w.notes[i] || w.notes[i]===prevAuto) w.notes[i] = r.noteText;
   w.times[i] = { s:dr.s, e:dr.e, sk:[...dr.sk], note:r.noteText };
   delete clockDrafts[i];
-  openDay = null; // folded card now shows hours + the auto-note: the "done" state
+  openDay = null;
+  const today0 = new Date(); today0.setHours(0,0,0,0);
+  for (let j=i+1; j<=6; j++){
+    const dj = dayDate(j); if (dj > today0) break;
+    const dow = dj.getDay();
+    if (dow===6 || (dow===0 && !state.settings.workSundays)) continue;
+    if (!(w.hours[j] > 0)){ openDay = j; break; }
+  }
   save(); renderWeek();
 }
 function clockSectionHtml(i, loggedTimes){
@@ -753,30 +767,46 @@ function clockSectionHtml(i, loggedTimes){
   const eInList = endChips.includes(dr.e);
   const r = clockResult(i);
   let h = '<div class="clockbox">';
-  // start: text + pencil, or a time input while editing
-  h += '<div class="clockline"><span class="dimtext">Started</span>'
-    + (dr.sEdit ? '<input class="compinput" type="time" value="'+dr.s+'" data-clk="s:'+i+'" style="width:118px">'
-                : '<button class="chip clockstart" data-clks="'+i+'">'+fmtClock(dr.s)+' <span class="dimtext">✎</span></button>')
-    + '</div>';
-  // finished: half-hour chips from the schedule end, or a time input
-  h += '<div class="dimtext" style="margin:6px 0 4px">Finished</div>';
+  // Started
+  h += '<div class="clockrow"><span class="clocklbl">Started</span><span class="clockval">'
+    + (dr.sEdit
+        ? '<input class="compinput" type="time" value="'+dr.s+'" data-clk="s:'+i+'" style="width:118px"><button class="chip tiny" data-clksx="'+i+'">\u2715</button>'
+        : '<b>'+fmtClock(dr.s)+(+dr.s.split(':')[0]<12?' AM':' PM')+'</b><button class="chip tiny" data-clks="'+i+'">change</button>')
+    + '</span></div>';
+  // Left at
+  h += '<div class="clockrow"><span class="clocklbl">Left at</span><span class="clockval">';
   if (dr.eOther || !eInList){
-    h += '<div class="clockline"><input class="compinput" type="time" value="'+dr.e+'" data-clk="e:'+i+'" style="width:118px"><button class="chip" data-clke="'+i+':'+p.end+'">chips</button></div>';
+    h += '<input class="compinput" type="time" value="'+dr.e+'" data-clk="e:'+i+'" style="width:118px"><button class="chip tiny" data-clke="'+i+':'+p.end+'">\u2715</button>';
   } else {
-    h += '<div class="chiprow clockchips">'+endChips.map(t=>'<button class="chip'+(dr.e===t?' on':'')+'" data-clke="'+i+':'+t+'">'+fmtClock(t)+'</button>').join('')
-      + '<button class="chip" data-clko="'+i+'">…</button></div>';
+    h += '<span class="clockchips">'+endChips.map(t=>'<button class="chip tchip'+(dr.e===t?' pick':'')+'" data-clke="'+i+':'+t+'">'+fmtClock(t)+'</button>').join('')
+      + '<button class="chip tchip" data-clko="'+i+'">other</button></span>';
   }
-  // breaks as toggle chips
+  h += '</span></div>';
+  // Skipped breaks
   if (p.breaks.length){
-    h += '<div class="chiprow" style="margin-top:4px">'+p.breaks.map((b,bi)=>'<button class="chip brk'+(dr.sk[bi]?' on':'')+'" data-clkb="'+i+':'+bi+'">no '+escapeHtml(b.label.toLowerCase())+' <span class="dimtext">+'+b.credit+' OT</span></button>').join('')+'</div>';
+    h += '<div class="clockrow"><span class="clocklbl">Skipped</span><span class="clockval"><span class="clockchips">'
+      + p.breaks.map((b,bi)=>'<button class="chip tchip brk'+(dr.sk[bi]?' pick':'')+'" data-clkb="'+i+':'+bi+'">'+(dr.sk[bi]?'\u2713 ':'')+escapeHtml(b.label.toLowerCase())+' <span class="dimtext">+'+b.credit+' OT</span></button>').join('')
+      + '</span></span></div>';
   }
-  // live line + log
-  h += '<div class="clockline" style="margin-top:6px">'
-    + '<span class="clockres">'+(r.ok ? r.span+(r.rounded?' <span class="dimtext">(→ '+r.roundedTo+')</span>':'')+(r.credits>0?' <span class="dimtext">+'+r.credits+' credit</span>':'')
-        + ' <span class="dimtext">· '+r.reg+' reg'+(r.ot>0?' + <b class="warn">'+r.ot+' OT</b>':'')+'</span>' : '<span class="dimtext">'+r.err+'</span>')+'</span>'
-    + '<button class="chip next" data-clklog="'+i+'"'+(r.ok?'':' disabled')+'>'+(loggedTimes?'Update':'Log')+(r.ok?' '+r.logAs+' hrs':'')+' ›</button>'
-    + '</div></div>';
+  // Result + the one action
+  h += '<div class="clockres">'+(r.ok
+      ? '<b>'+r.logAs+' hrs</b> <span class="dimtext">\u00B7 '+r.reg+' reg'+(r.ot>0?' + <b class="warn">'+r.ot+' OT</b>':'')
+        + (r.credits>0?' (incl. '+r.credits+' break credit)':'')+(r.rounded?' \u00B7 out rounds to '+r.roundedTo:'')+'</span>'
+      : '<span class="dimtext">'+r.err+'</span>')+'</div>';
+  h += '<button class="chip next clocklog" data-clklog="'+i+'"'+(r.ok?'':' disabled')+'>'+(loggedTimes?'Update':'Log')+(r.ok?' '+r.logAs+' hrs':'')+' \u203A</button>';
+  h += '</div>';
+  h += '<button class="modelink" data-clkmode="'+i+':hours">Type total hours instead \u203A</button>';
   return h;
+}
+function hoursSectionHtml(i, h){
+  return '<div class="chiprow">'+[8,9,10,11,12].map(v=>'<button class="chip'+(h===v?' on':'')+'" data-set="'+i+':'+v+'">'+v+'</button>').join('')+'</div>'
+    + '<div class="chiprow">'
+    +   '<button class="chip" data-adj="'+i+':-0.5">\u2212\u00BD</button>'
+    +   '<button class="chip" data-adj="'+i+':0.5">+\u00BD</button>'
+    +   '<button class="chip clear" data-set="'+i+':0">Clear</button>'
+    +   '<button class="chip next" data-next="'+i+'">'+(i<6?'Next \u203A':'Done')+'</button>'
+    + '</div>'
+    + '<button class="modelink" data-clkmode="'+i+':clock">\uD83D\uDD50 Enter start & end instead \u203A</button>';
 }
 // Per-day premium label: how many of this day's hours are OT / double time
 // (weekdays: over the daily cap; Saturday: all OT; Sunday: all double time)
@@ -950,15 +980,7 @@ function renderWeek(){
       + (!open && !confirming && note ? '<span class="daynote-preview">\uD83D\uDCDD '+escapeHtml(note)+'</span>' : '')
       + (open && !confirming ?
         '<div class="daybody">'
-        + clockSectionHtml(i, !!(week && week.times && week.times[i]))
-        + '<div class="dimtext" style="margin:2px 0 6px; font-size:11px">or set total hours directly</div>'
-        + '<div class="chiprow">'+[8,9,10,11,12].map(v=>'<button class="chip'+(h===v?' on':'')+'" data-set="'+i+':'+v+'">'+v+'</button>').join('')+'</div>'
-        + '<div class="chiprow">'
-        +   '<button class="chip" data-adj="'+i+':-0.5">\u2212\u00BD</button>'
-        +   '<button class="chip" data-adj="'+i+':0.5">+\u00BD</button>'
-        +   '<button class="chip clear" data-set="'+i+':0">Clear</button>'
-        +   '<button class="chip next" data-next="'+i+'">'+(i<6?'Next \u203A':'Done')+'</button>'
-        + '</div>'
+        + (clockDraft(i).mode==='hours' ? hoursSectionHtml(i, h) : clockSectionHtml(i, !!(week && week.times && week.times[i])))
         + '<input class="noteinput" type="text" maxlength="80" placeholder="Note (optional) \u2014 e.g. why the OT, job site\u2026" value="'+escapeAttr(note)+'" data-note="'+i+'">'
         + '</div>' : '');
     list.appendChild(card);
@@ -1525,6 +1547,8 @@ document.addEventListener('click', (e)=>{
   if (t.dataset.shp){ shProf = t.dataset.shp; const p = shProfileObj(); document.getElementById('shStart').value=p.start; document.getElementById('shEnd').value=p.end; renderShiftBreaks(); updateShiftCalc(); return; }
   if (t.dataset.clke!==undefined){ const i = +t.dataset.clke.split(':')[0]; const tm = t.dataset.clke.slice(t.dataset.clke.indexOf(':')+1); const dr = clockDraft(i); dr.e = tm; dr.eOther=false; renderWeek(); return; }
   if (t.dataset.clko!==undefined){ clockDraft(+t.dataset.clko).eOther = true; renderWeek(); return; }
+  if (t.dataset.clksx!==undefined){ clockDraft(+t.dataset.clksx).sEdit = false; renderWeek(); return; }
+  if (t.dataset.clkmode!==undefined){ const [i,m] = t.dataset.clkmode.split(':'); clockDraft(+i).mode = m; renderWeek(); return; }
   if (t.dataset.clks!==undefined){ clockDraft(+t.dataset.clks).sEdit = true; renderWeek(); return; }
   if (t.dataset.clkb!==undefined){ const [i,bi] = t.dataset.clkb.split(':').map(Number); const dr = clockDraft(i); dr.sk[bi] = !dr.sk[bi]; renderWeek(); return; }
   if (t.dataset.clklog!==undefined){ logClock(+t.dataset.clklog); return; }
@@ -1538,7 +1562,7 @@ document.addEventListener('click', (e)=>{
     confirmDay = null; sunPrompt = false;
     openDay = (openDay===i? null : i); renderWeek(); return;
   }
-  if (t.dataset.set){ const [i,v] = t.dataset.set.split(':').map(Number); setDay(i,v,true); return; }
+  if (t.dataset.set){ const [i,v] = t.dataset.set.split(':').map(Number); clockDraft(i).mode='hours'; setDay(i,v,true); return; }
   if (t.dataset.adj){ const [i,dv] = t.dataset.adj.split(':').map(Number); setDay(i, getHours()[i]+dv); return; }
   if (t.dataset.next!==undefined){
     const i = +t.dataset.next;
