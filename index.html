@@ -740,6 +740,7 @@ function clockResult(i){
   return shiftCalc(dr.s, dr.e, dr.sk, schedProfile(dayDate(i).getDay()), ratesForW(getWeek()));
 }
 function logClock(i){
+  flushNotes(); // capture anything typed in the note box before we decide about the auto-note
   const r = clockResult(i); if (!r.ok) return;
   const dr = clockDraft(i);
   const w = touchWeek();
@@ -748,6 +749,7 @@ function logClock(i){
   if (r.credits>0) w.credit[i] = r.credits; else delete w.credit[i];
   const prevAuto = w.times[i] && w.times[i].note;
   if (!w.notes[i] || w.notes[i]===prevAuto) w.notes[i] = r.noteText;
+  const nb = document.querySelector('.noteinput[data-note="'+i+'"]'); if (nb) nb.value = w.notes[i]; // keep DOM in step so the render flush doesn't undo this
   w.times[i] = { s:dr.s, e:dr.e, sk:[...dr.sk], note:r.noteText };
   delete clockDrafts[i];
   openDay = null;
@@ -808,6 +810,21 @@ function hoursSectionHtml(i, h){
     + '</div>'
     + '<button class="modelink" data-clkmode="'+i+':clock">\uD83D\uDD50 Enter start & end instead \u203A</button>';
 }
+function setNote(i, text){ const w = touchWeek(); w.notes[i] = text; save(); }
+// Before any re-render, capture what's sitting in the note boxes — iOS can dismiss the
+// keyboard and re-render before the last input event lands. Nothing typed is ever lost.
+function flushNotes(){
+  let changed = false;
+  document.querySelectorAll('.noteinput[data-note]').forEach(el=>{
+    const i = +el.dataset.note; const w = getWeek();
+    const cur = (w && w.notes && w.notes[i]) || '';
+    if (el.value !== cur){ const ww = touchWeek(); ww.notes[i] = el.value; changed = true; }
+  });
+  const wn = document.getElementById('weekNoteInput');
+  if (wn){ const w = getWeek(); const cur = (w && w.weekNote) || ''; if (wn.value !== cur){ touchWeek().weekNote = wn.value; changed = true; } }
+  if (changed) save();
+}
+
 // Per-day premium label: how many of this day's hours are OT / double time
 // (weekdays: over the daily cap; Saturday: all OT; Sunday: all double time)
 function dayPremium(i, h, s){
@@ -829,6 +846,7 @@ function weekSlide(dir){
 
 // ============ RENDER: WEEK ============
 function renderWeek(){
+  flushNotes();
   const week = getWeek();
   const hours = getHours();
   const notes = getNotes();
@@ -1576,6 +1594,7 @@ document.addEventListener('click', (e)=>{
     renderWeek(); return;
   }
 });
+document.addEventListener('focusout', (e)=>{ const el = e.target; if (el && el.classList && el.classList.contains('noteinput')) flushNotes(); });
 document.addEventListener('input', (e)=>{
   const el = e.target;
   if (el.dataset && el.dataset.qc){ updateQuickCalc(); return; }
@@ -1598,6 +1617,7 @@ document.addEventListener('input', (e)=>{
 });
 document.addEventListener('change', (e)=>{
   const el = e.target;
+  if (el.dataset && el.dataset.note!==undefined){ setNote(+el.dataset.note, el.value); return; }
   if (el.id==='wkMakeup'){
     const v = Math.max(0, parseFloat(el.value)||0);
     const w2 = touchWeek();
