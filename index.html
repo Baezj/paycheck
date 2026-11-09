@@ -445,8 +445,12 @@
       <div class="comprow" style="margin-bottom:10px"><label for="qcDt">Sunday hours (2x)</label>
         <input class="compinput" id="qcDt" type="number" inputmode="decimal" step="0.5" min="0" placeholder="0" data-qc="1"></div>
       <div class="compresult" id="qcResult" style="border-top:1px solid var(--line); padding-top:10px"></div>
-      <div class="comprow" style="margin:14px 0 8px; border-top:1px solid var(--line); padding-top:14px"><label for="qcTarget">↔ Reverse: target take-home ($)</label>
+      <div class="comprow" style="margin:14px 0 8px; border-top:1px solid var(--line); padding-top:14px"><label for="qcTarget">↔ Reverse: target ($)</label>
         <input class="compinput" id="qcTarget" type="number" inputmode="decimal" step="10" min="0" placeholder="1500" data-qcr="1"></div>
+      <div class="seg" id="qcRevSeg" style="margin-bottom:8px">
+        <button class="segbtn on" data-qcrmode="net">Take-home</button>
+        <button class="segbtn" data-qcrmode="gross">Gross</button>
+      </div>
       <div class="compresult" id="qcRevResult"></div>
     </div>
 
@@ -1296,13 +1300,17 @@ function updateQuickCalc(){
     '<div>'+r.hrs+' hrs \u2192 Gross: <b>$'+money(r.gross)+'</b></div>'
     + '<div style="margin-top:4px">Take-home: <b class="good" style="font-size:17px">$'+money(r.net)+'</b></div>';
 }
+let qcRevMode = 'net';
 function updateQuickRev(){
   const out = document.getElementById('qcRevResult');
   if (!out) return;
   const target = parseFloat(document.getElementById('qcTarget').value)||0;
-  if (target<=0){ out.innerHTML = '<span class="dimtext">Enter a take-home amount to see the hours it takes.</span>'; return; }
+  const gross = qcRevMode === 'gross';
+  document.querySelectorAll('[data-qcrmode]').forEach(b=>b.classList.toggle('on', b.dataset.qcrmode===qcRevMode));
+  if (target<=0){ out.innerHTML = '<span class="dimtext">Enter a '+(gross?'gross':'take-home')+' amount to see the hours it takes.</span>'; return; }
   // model a normal week: first 40 hrs regular, the rest OT — then bisect on total hours
-  const netAt = h => qcNetFor(Math.min(h,40), Math.max(0,h-40), 0).net;
+  // (same solver either way; only the quantity we aim at changes)
+  const netAt = h => { const r = qcNetFor(Math.min(h,40), Math.max(0,h-40), 0); return gross ? r.gross : r.net; };
   if (target > netAt(100)){
     out.innerHTML = '<span class="dimtext">That\u2019s more than \u2248100 hrs/week at your rates \u2014 check the number.</span>'; return;
   }
@@ -1315,14 +1323,15 @@ function updateQuickRev(){
   const h = Math.abs(nDown-target) <= Math.abs(nUp-target) ? qDown : qUp;
   const reg = Math.min(h,40), ot = Math.max(0,h-40);
   const r = qcNetFor(reg, ot, 0);
-  const delta = r.net - target;
+  const delta = (gross ? r.gross : r.net) - target;
   let gapNote = '';
   if (delta <= -0.5) gapNote = ' \u00B7 $'+money(-delta)+' under target; '+qUp+' hrs clears it';
   else if (delta >= 0.5) gapNote = ' \u00B7 $'+money(delta)+' over target';
   out.innerHTML =
-    '<div>$'+money(target)+' take-home \u2192 <b class="good" style="font-size:17px">\u2248 '+h+' hrs</b>'
+    '<div>$'+money(target)+' '+(gross?'gross':'take-home')+' → <b class="good" style="font-size:17px">≈ '+h+' hrs</b>'
     + (ot>0 ? ' <span class="dimtext">(40 reg + '+ot+' OT)</span>' : '')+'</div>'
-    + '<div style="margin-top:4px" class="dimtext">That week grosses \u2248$'+money(r.gross)+' and nets $'+money(r.net)+gapNote+'. Uses your calibrated rates \u2014 sharpens with every verified check.</div>';
+    + '<div style="margin-top:4px" class="dimtext">That week grosses $'+money(r.gross)+' and nets ≈$'+money(r.net)+gapNote+'. '
+    + (gross ? 'Gross is just hours × your rates — no tax guesswork.' : 'Uses your calibrated rates — sharpens with every verified check.')+'</div>';
 }
 
 // ============ RENDER: SETTINGS ============
@@ -1595,6 +1604,7 @@ document.addEventListener('click', (e)=>{
   }
   if (t.dataset.themePick){ state.theme = t.dataset.themePick; save(); applyTheme(); return; }
   if (t.dataset.skinPick){ state.settings.skin = t.dataset.skinPick; save(); applySkin(); return; }
+  if (t.dataset.qcrmode){ qcRevMode = t.dataset.qcrmode; updateQuickRev(); return; }
   if (t.dataset.sunPick){
     state.settings.workSundays = (t.dataset.sunPick==='on');
     save(); syncSunSeg(); return;
