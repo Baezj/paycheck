@@ -1874,6 +1874,7 @@ try {
     bstate.payments = bsaved.payments||{};
     bstate.overrides = bsaved.overrides||{};
     bstate.parking = bsaved.parking||{};
+    bstate.parkOff = bsaved.parkOff||{}; // days with no commute: 'holiday' | 'off'
     bstate.settings = { ...BDEF.settings, ...(bsaved.settings||{}) };
     bstate.ui = { ...BDEF.ui, ...(bsaved.ui||{}) };
   }
@@ -2659,8 +2660,8 @@ function bParkKey(){ return bParkSel || bTodayKey(); }
 // week of catch-up is just tap-tap, tap-tap. Editor closes when week's done.
 function bParkAdvance(savedKey){
   const days = bParkWeekDays();
-  const next = days.find(k=>k>savedKey && bstate.parking[k]===undefined)
-            || days.find(k=>bstate.parking[k]===undefined);
+  const unlogged = k => bstate.parking[k]===undefined && !(bstate.parkOff||{})[k] && !usHoliday(fromKey(k));
+  const next = days.find(k=>k>savedKey && unlogged(k)) || days.find(unlogged);
   bParkSel = next || null;
 }
 function bParkWeekDays(){
@@ -2916,6 +2917,7 @@ function bParkDayLogHtml(firstKey){
       let txt, style;
       if (dd > todayD){ txt='\u00B7'; style='color:var(--line); '; }
       else if (v!==undefined){ txt = v===0 ? '0' : (v%1===0? '$'+v : '$'+v.toFixed(2)); style = v===0 ? 'color:var(--dim); ' : 'color:var(--text); font-weight:600; '; }
+      else if ((bstate.parkOff||{})[k]){ txt = (bstate.parkOff[k]==='holiday') ? '\uD83C\uDFD6' : 'off'; style='color:var(--dim); font-size:10px; '; }
       else if (dow>=1 && dow<=5 && dd < todayD){
         if (usHoliday(dd)){ txt='\uD83C\uDFD6'; style='color:var(--dim); font-size:10px; '; }
         else { txt='\u2014'; style='color:var(--red); font-weight:700; '; gaps++; }
@@ -3007,6 +3009,23 @@ let bCardOpen = null;    // card expanded in the Cards dashboard
 let bLoanOpen = null;    // loan expanded in the Loans dashboard
 // Parking presets that maintain themselves: $0 and the scooter lot up front,
 // then whatever rates history says he actually uses. Old lots fade out on their own.
+// Mark a day as no-commute (holiday / didn't work): it's handled, not a gap, and never a $ entry
+function bParkSetOff(key){
+  bstate.parkOff = bstate.parkOff || {};
+  bstate.parkOff[key] = usHoliday(fromKey(key)) ? 'holiday' : 'off';
+  delete bstate.parking[key];
+}
+function bParkOffLabel(key){
+  const kind = (bstate.parkOff||{})[key]; if (!kind) return '';
+  const h = usHoliday(fromKey(key));
+  return kind==='holiday' && h ? '\uD83C\uDFD6 '+h+' \u2014 off' : '\uD83D\uDEAB No work';
+}
+function bOffChipHtml(key, attr){
+  const h = usHoliday(fromKey(key));
+  const on = !!(bstate.parkOff||{})[key];
+  return '<button class="chip" style="flex:1.6; font-size:13px; padding:10px 4px'+(on?'; background:var(--orange); color:var(--orange-text); border-color:var(--orange)':'')+'" '+attr+'>'
+    + (h ? '\uD83C\uDFD6 '+escapeHtml(h)+' \u2014 off' : '\uD83D\uDEAB Didn\u2019t work')+'</button>';
+}
 function bParkChips(){
   const counts = {};
   for (const v of Object.values(bstate.parking)) if (v>0) counts[v] = (counts[v]||0)+1;
@@ -3027,6 +3046,7 @@ function bParkBackfillTarget(now){
     if (dow===6) continue;                          // Saturdays: neutral, never a gap
     if (dow===0 && !bstate.settings.parkSun) continue;
     if (usHoliday(dd)) continue; // unworked holiday: nothing to nag about
+    if ((bstate.parkOff||{})[toKey(dd)]) continue; // marked off: handled
     if (bstate.parking[toKey(dd)] === undefined) return dd;
   }
   return null;
@@ -3039,20 +3059,24 @@ function bRenderPayPark(){
   el.classList.remove('hidden');
   const k = bTodayKey();
   const v = bstate.parking[k];
+  const off = (bstate.parkOff||{})[k];
   const dow = new Date().getDay();
-  const open = bPayParkOpen===true || (bPayParkOpen===null && v===undefined && dow>=1 && dow<=5);
+  const open = bPayParkOpen===true || (bPayParkOpen===null && v===undefined && !off && dow>=1 && dow<=5 && !usHoliday(new Date()));
   let html = '<button class="b-paneltog" data-bpptog="1">'
     + '<span class="eyebrow">\uD83C\uDD7F\uFE0F Parking today</span>'
-    + '<span class="b-togval">'+(v!==undefined ? '<span class="good">\u2713 $'+money(v)+'</span> '+(open?'\u25BE':'\u25B8') : (open?'\u25BE':'log \u25B8'))+'</span></button>';
+    + '<span class="b-togval">'+(v!==undefined ? '<span class="good">\u2713 $'+money(v)+'</span> '+(open?'\u25BE':'\u25B8')
+        : off ? '<span class="dimtext">'+bParkOffLabel(k)+'</span> '+(open?'\u25BE':'\u25B8')
+        : (open?'\u25BE':'log \u25B8'))+'</span></button>';
   if (open){
     const chips = bParkChips();
     html += '<div class="chiprow" style="margin-top:10px">'
       + chips.map(c=>'<button class="chip" style="font-size:14px; padding:10px 0'+(v===c?'; background:var(--orange); color:var(--orange-text); border-color:var(--orange)':'')+'" data-bppark="'+c+'">'+(c===0?'$0':c)+'</button>').join('')
       + '</div>'
+      + '<div class="chiprow" style="margin-top:6px">'+bOffChipHtml(k, 'data-bppoff="1"')+'</div>'
       + '<div class="comprow" style="margin-top:8px"><label for="bPayParkOther" class="b-tmplsub">Other amount</label>'
       + '<span><input class="compinput" id="bPayParkOther" type="number" inputmode="decimal" step="0.25" style="width:90px" placeholder="0.00">'
       + ' <button class="smallbtn" style="flex:none; padding:9px 14px" data-bppsave="1">Save</button>'
-      + (v!==undefined ? ' <button class="smallbtn danger" style="flex:none; padding:9px 14px" data-bppdel="1">Clear</button>' : '')
+      + (v!==undefined || off ? ' <button class="smallbtn danger" style="flex:none; padding:9px 14px" data-bppdel="1">Clear</button>' : '')
       + '</span></div>'
       + (function(){
           const bt = bParkBackfillTarget();
@@ -3105,23 +3129,25 @@ function bRenderPark(){
   for (const k of days){
     const d = fromKey(k);
     const v = bstate.parking[k];
+    const offK = (bstate.parkOff||{})[k];
     const isFuture = d > nowD;
     const open = bParkSel === k;
     html += '<div class="day'+(open?' open':'')+'">'
       + '<button class="dayhead" data-bparkday="'+k+'"'+(isFuture?' style="opacity:.4"':'')+'>'
       + '<span><span class="b-name">'+BDOW[d.getDay()]+' <span class="b-sub" style="display:inline">'+bFmtDue(d)+(k===todayK?' \u00B7 today':'')+'</span></span></span>'
       + '<span class="b-amt'+(v!==undefined?' paid':'')+'" style="'+(v===undefined?'color:var(--dim); font-weight:400':'')+'">'
-      + (v!==undefined ? '\u2713 $'+money(v) : '$0.00')+'</span>'
+      + (v!==undefined ? '\u2713 $'+money(v) : offK ? '<span class="dimtext" style="font-size:12px">'+bParkOffLabel(k)+'</span>' : '$0.00')+'</span>'
       + '</button>';
     if (open){
       html += '<div style="padding:0 12px 14px">'
         + '<div class="chiprow" style="margin-top:2px">'
         + chips.map(c=>'<button class="chip" style="font-size:14px; padding:10px 0'+(v===c?'; background:var(--orange); color:var(--orange-text); border-color:var(--orange)':'')+'" data-bpark="'+c+'">'+(c===0?'$0':c)+'</button>').join('')
         + '</div>'
+        + '<div class="chiprow" style="margin-top:6px">'+bOffChipHtml(k, 'data-bparkoff="1"')+'</div>'
         + '<div class="comprow" style="margin-top:8px"><label for="bParkOther" class="b-tmplsub">Other amount</label>'
         + '<span><input class="compinput" id="bParkOther" type="number" inputmode="decimal" step="0.25" style="width:90px" placeholder="0.00">'
         + ' <button class="smallbtn" style="flex:none; padding:9px 14px" data-bparksave="1">Save</button>'
-        + (v!==undefined ? ' <button class="smallbtn danger" style="flex:none; padding:9px 14px" data-bparkdel="1">Clear</button>' : '')
+        + (v!==undefined || offK ? ' <button class="smallbtn danger" style="flex:none; padding:9px 14px" data-bparkdel="1">Clear</button>' : '')
         + '</span></div></div>';
     }
     html += '</div>';
@@ -3629,17 +3655,18 @@ document.addEventListener('click', (e)=>{
     bRenderPayPark(); return;
   }
   if (ds.bppark!==undefined){
-    bstate.parking[bTodayKey()] = parseFloat(ds.bppark)||0;
+    bstate.parking[bTodayKey()] = parseFloat(ds.bppark)||0; if (bstate.parkOff) delete bstate.parkOff[bTodayKey()];
     bsave(); bPayParkOpen=null; renderBills(); return; // renderBills cascades to both mirrors
   }
+  if (ds.bppoff!==undefined){ bParkSetOff(bTodayKey()); bsave(); bPayParkOpen=null; renderBills(); return; }
   if (ds.bppsave!==undefined){
     const amt = parseFloat(document.getElementById('bPayParkOther').value);
-    if (!isNaN(amt) && amt>=0){ bstate.parking[bTodayKey()] = amt; bsave(); bPayParkOpen=null; renderBills(); }
+    if (!isNaN(amt) && amt>=0){ bstate.parking[bTodayKey()] = amt; if (bstate.parkOff) delete bstate.parkOff[bTodayKey()]; bsave(); bPayParkOpen=null; renderBills(); }
     else { bPayParkOpen=false; bRenderPayPark(); }
     return;
   }
   if (ds.bppdel!==undefined){
-    delete bstate.parking[bTodayKey()];
+    delete bstate.parking[bTodayKey()]; if (bstate.parkOff) delete bstate.parkOff[bTodayKey()];
     bsave(); bPayParkOpen=null; renderBills(); return;
   }
   if (ds.bparkexpand!==undefined){
@@ -3660,21 +3687,22 @@ document.addEventListener('click', (e)=>{
   }
   if (ds.bpark!==undefined){
     const key = bParkKey();
-    bstate.parking[key] = parseFloat(ds.bpark)||0;
+    bstate.parking[key] = parseFloat(ds.bpark)||0; if (bstate.parkOff) delete bstate.parkOff[key];
     bsave(); bParkAdvance(key); renderBills(); return;
   }
+  if (ds.bparkoff!==undefined){ const key = bParkKey(); bParkSetOff(key); bsave(); bParkAdvance(key); renderBills(); return; }
   if (ds.bparksave!==undefined){
     const amt = parseFloat(document.getElementById('bParkOther').value);
     const key = bParkKey();
     if (!isNaN(amt) && amt>=0){
-      bstate.parking[key] = amt; bsave(); bParkAdvance(key); renderBills();
+      bstate.parking[key] = amt; if (bstate.parkOff) delete bstate.parkOff[key]; bsave(); bParkAdvance(key); renderBills();
     } else {
       bParkSel = null; renderBills(); // nothing typed — just close this day's editor
     }
     return;
   }
   if (ds.bparkdel!==undefined){
-    delete bstate.parking[bParkKey()];
+    delete bstate.parking[bParkKey()]; if (bstate.parkOff) delete bstate.parkOff[bParkKey()];
     bsave(); bParkSel=null; renderBills(); return;
   }
   if (ds.bquick!==undefined){
@@ -3753,7 +3781,7 @@ document.addEventListener('click', (e)=>{
       const dd = new Date(mon); dd.setDate(dd.getDate()+i);
       if (dd > todayD) break;
       const dow = dd.getDay();
-      if (dow>=1 && dow<=5 && !usHoliday(dd) && bstate.parking[toKey(dd)]===undefined){ sel = toKey(dd); break; }
+      if (dow>=1 && dow<=5 && !usHoliday(dd) && !(bstate.parkOff||{})[toKey(dd)] && bstate.parking[toKey(dd)]===undefined){ sel = toKey(dd); break; }
     }
     bParkSel = sel;
     const billsTab = document.querySelector('.tab[data-screen="bills"]');
