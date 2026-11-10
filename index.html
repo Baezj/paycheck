@@ -708,10 +708,14 @@ function ratesForW(week){
 // Which schedule shape a weekday has (Friday can differ)
 function schedProfile(dow){
   const sc = state.settings.schedule || DEFAULTS.schedule;
-  const key = (dow===5 && sc.fri && sc.fri.on) ? 'fri' : 'wk';
+  return schedProfileKey((dow===5 && sc.fri && sc.fri.on) ? 'fri' : 'wk');
+}
+function schedProfileKey(key){
+  const sc = state.settings.schedule || DEFAULTS.schedule;
+  if (key==='fri' && !(sc.fri && sc.fri.on)) key = 'wk';
   const p = sc[key];
   const extra = (p.extra!==undefined && p.extra!==null && p.extra!=='') ? +p.extra : (DEFAULTS.schedule[key].extra||0);
-  return { start:p.start, end:p.end, extra, breaks:(p.breaks||[]).filter(b=>b && b.label && b.credit>0) };
+  return { key, start:p.start, end:p.end, extra, breaks:(p.breaks||[]).filter(b=>b && b.label && b.credit>0) };
 }
 // The one engine behind every start/end computation (day cards + Settings calculator).
 // Payroll rounds clock-out UP to the next half hour. Skipped breaks are paid as OT credit.
@@ -815,15 +819,23 @@ function clockDraft(i){
   const w = getWeek(); const t = w && w.times && w.times[i];
   const p = schedProfile(dayDate(i).getDay());
   const hasHoursNoTimes = !t && w && (w.hours||[])[i] > 0;
-  clockDrafts[i] = t ? { wk, mode:'clock', s:t.s, e:t.e, sk:[...(t.sk||[])], sEdit:false, eOther:false }
-                     : { wk, mode:(hasHoursNoTimes?'hours':'clock'), s:p.start, e:p.end, sk:p.breaks.map(()=>false), sEdit:false, eOther:false };
+  clockDrafts[i] = t ? { wk, mode:'clock', prof:(t.prof||p.key), s:t.s, e:t.e, sk:[...(t.sk||[])], sEdit:false, eOther:false }
+                     : { wk, mode:(hasHoursNoTimes?'hours':'clean'.replace('clean','clock')), prof:p.key, s:p.start, e:p.end, sk:p.breaks.map(()=>false), sEdit:false, eOther:false };
   return clockDrafts[i];
 }
 function addMin(hhmm, mins){ const [h,m] = hhmm.split(':').map(Number); const t = ((h*60+m+mins)%1440+1440)%1440; return String(Math.floor(t/60)).padStart(2,'0')+':'+String(t%60).padStart(2,'0'); }
 function fmtClock(hhmm){ const [h,m] = hhmm.split(':').map(Number); return (h%12===0?12:h%12)+':'+String(m).padStart(2,'0'); }
+function clockProfile(i){ return schedProfileKey(clockDraft(i).prof); }
 function clockResult(i){
   const dr = clockDraft(i);
-  return shiftCalc(dr.s, dr.e, dr.sk, schedProfile(dayDate(i).getDay()), ratesForW(getWeek()));
+  return shiftCalc(dr.s, dr.e, dr.sk, clockProfile(i), ratesForW(getWeek()));
+}
+// Swap a day onto the other schedule (exception days: 'we're on Friday hours today')
+function clockSwapProfile(i){
+  const dr = clockDraft(i);
+  const next = dr.prof==='fri' ? 'wk' : 'fri';
+  const p = schedProfileKey(next);
+  dr.prof = p.key; dr.s = p.start; dr.e = p.end; dr.sk = p.breaks.map(()=>false); dr.eOther = false; dr.sEdit = false;
 }
 function logClock(i){
   flushNotes(); // capture anything typed in the note box before we decide about the auto-note
@@ -836,7 +848,7 @@ function logClock(i){
   const prevAuto = w.times[i] && w.times[i].note;
   if (!w.notes[i] || w.notes[i]===prevAuto) w.notes[i] = r.noteText;
   const nb = document.querySelector('.noteinput[data-note="'+i+'"]'); if (nb) nb.value = w.notes[i]; // keep DOM in step so the render flush doesn't undo this
-  w.times[i] = { s:dr.s, e:dr.e, sk:[...dr.sk], note:r.noteText };
+  w.times[i] = { s:dr.s, e:dr.e, sk:[...dr.sk], prof:dr.prof, note:r.noteText };
   delete clockDrafts[i];
   justLoggedDay = i;
   openDay = null;
@@ -858,8 +870,8 @@ function clockScrollPick(){
 }
 function clockSectionHtml(i, loggedTimes){
   const dr = clockDraft(i);
-  const p = schedProfile(dayDate(i).getDay());
-  const endChips = Array.from({length:11}, (_,k)=>addMin(p.end, k*30)); // schedule end .. +5h, scrollable
+  const p = clockProfile(i);
+  const endChips = Array.from({length:17}, (_,k)=>addMin(p.end, (k-6)*30)); // 3h early .. +5h late; swipe either way
   const eInList = endChips.includes(dr.e);
   const r = clockResult(i);
   let h = '<div class="clockbox">';
@@ -868,6 +880,8 @@ function clockSectionHtml(i, loggedTimes){
     + (dr.sEdit
         ? '<input class="compinput" type="time" value="'+dr.s+'" data-clk="s:'+i+'" style="width:118px"><button class="chip tiny" data-clksx="'+i+'">\u2715</button>'
         : '<button class="startbtn" data-clks="'+i+'"><b>'+fmtClock(dr.s)+(+dr.s.split(':')[0]<12?' AM':' PM')+'</b> <span class="dimtext">\u270E</span></button>')
+    + (function(){ const sc = state.settings.schedule||DEFAULTS.schedule; if (!(sc.fri && sc.fri.on)) return '';
+        return '<button class="chip tiny" style="margin-left:auto" data-clkp="'+i+'">'+(dr.prof==='fri' ? 'Fri hours \u00B7 switch' : 'Use Fri hours')+'</button>'; })()
     + '</span></div>';
   // Left at
   h += '<div class="clockrow"><span class="clocklbl">Left at</span><span class="clockval">';
@@ -1684,6 +1698,7 @@ document.addEventListener('click', (e)=>{
   if (t.id==='claimTog'){ claimOpen = true; renderWeek(); const el=document.getElementById('wkMakeup'); if (el) el.focus(); return; }
   if (t.dataset.clke!==undefined){ const i = +t.dataset.clke.split(':')[0]; const tm = t.dataset.clke.slice(t.dataset.clke.indexOf(':')+1); const dr = clockDraft(i); dr.e = tm; dr.eOther=false; renderWeek(); return; }
   if (t.dataset.clko!==undefined){ clockDraft(+t.dataset.clko).eOther = true; renderWeek(); return; }
+  if (t.dataset.clkp!==undefined){ clockSwapProfile(+t.dataset.clkp); renderWeek(); return; }
   if (t.dataset.clksx!==undefined){ clockDraft(+t.dataset.clksx).sEdit = false; renderWeek(); return; }
   if (t.dataset.clkmode!==undefined){ const [i,m] = t.dataset.clkmode.split(':'); clockDraft(+i).mode = m; renderWeek(); return; }
   if (t.dataset.clks!==undefined){ clockDraft(+t.dataset.clks).sEdit = true; renderWeek(); return; }
