@@ -787,6 +787,19 @@ const DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 let weekEnd = weekEndSat(new Date());
 let openDay = null;
 let confirmDay = null; // day pending delete confirmation (via long-press)
+function dayHasData(i){
+  const w = getWeek(); if (!w) return false;
+  return (w.hours||[])[i] > 0 || !!(w.notes||[])[i] || !!(w.times && w.times[i]) || !!(w.credit && w.credit[i]);
+}
+// Wipe everything recorded for a day: hours, break credit, clock times, note
+function clearDay(i){
+  const w = touchWeek();
+  w.hours[i] = 0; w.notes[i] = '';
+  if (w.credit) delete w.credit[i];
+  if (w.times) delete w.times[i];
+  delete clockDrafts[i];
+  save();
+}
 let sunPrompt = false; // greyed Sunday tapped — asking whether to enable Sundays
 let lpFired = false;   // suppresses the tap that follows a long-press
 let showBd = false;
@@ -1112,7 +1125,8 @@ function renderWeek(){
       : '')
       + (confirming ?
         '<div class="confirmbody">'
-        + '<span class="confirmtext">Clear '+DAYS[d.getDay()]+' '+fmtShort(d)+' \u2014 '+h+' hrs?'+(note?' (note kept)':'')+'</span>'
+        + '<span class="confirmtext">Clear '+DAYS[d.getDay()]+' '+fmtShort(d)+'? '
+          + [h>0 ? h+' hrs' : null, (week && week.times && week.times[i]) ? 'times' : null, note ? 'note' : null].filter(Boolean).join(' + ')+'</span>'
         + '<button class="confirmbtn keep" data-canceldel="'+i+'">Keep</button>'
         + '<button class="confirmbtn del" data-confirmdel="'+i+'">Clear</button>'
         + '</div>'
@@ -1681,7 +1695,7 @@ document.addEventListener('click', (e)=>{
   if (t.id==='shareBtn'){ shareTimesheet(); return; }
   if (t.id==='importBtn'){ document.getElementById('importFile').click(); return; }
   if (t.dataset.confirmdel!==undefined){
-    setDay(+t.dataset.confirmdel, 0);
+    clearDay(+t.dataset.confirmdel);
     confirmDay = null; renderWeek(); return;
   }
   if (t.dataset.canceldel!==undefined){
@@ -1811,7 +1825,7 @@ document.getElementById('payCard').addEventListener('click', (e)=>{
     if (head && head.dataset.day!==undefined){
       const idx = +head.dataset.day;
       const sunOffIdle = (idx===0 && !state.settings.workSundays && (getHours()[0]||0)<=0);
-      if (((getHours()[idx]||0) > 0 && confirmDay!==idx) || sunOffIdle){
+      if ((dayHasData(idx) && confirmDay!==idx) || sunOffIdle){
         lpTimer = setTimeout(()=>{
           lpTimer=null; lpFired=true;
           if (sunOffIdle){ sunPrompt = true; confirmDay = null; }
